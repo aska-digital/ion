@@ -158,6 +158,7 @@ class FakeGH:
             return {}
         if method == "POST" and parts[-1] == "labels" and "issues" in parts:
             n = int(parts[4])
+            self.issues.setdefault(n, {"body": "", "title": "", "labels": []})
             for l in body["labels"]:
                 self.issues[n]["labels"].append(l)
                 self.add_label_event(n, l, self.bot_login, ts="2099-01-01T00:00:01Z")

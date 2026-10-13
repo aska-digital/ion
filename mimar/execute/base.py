@@ -152,6 +152,13 @@ class Executor:
         Path(dest).parent.mkdir(parents=True, exist_ok=True)
         self.g([*self.auth(url), "clone", "--quiet", "--no-local", url, str(dest)])
 
+    def verify_filtered(self, p: dict, source: str, base: str, dirs: list[str], filtered_dir) -> dict:
+        """Exact check of a filter-repo result: tree equality plus commit-map coverage (see provenance.py)."""
+        from .provenance import verify_filtered
+        src = self.ctx.work_dir(p["id"]) / "verify-source"
+        self.clone(self.ctx.remote_url(source), src)
+        return verify_filtered(filtered_dir, src, f"origin/{base}", dirs)
+
     def commit(self, cwd, msg: str) -> None:
         """Commit with the configured identity. No AI trailers unless the config asks for them."""
         if self.cfg.get("ai_attribution"):

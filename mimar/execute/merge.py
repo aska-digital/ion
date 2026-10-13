@@ -1,6 +1,7 @@
 """Merge repo A into repo B with full history (git subtree add, no squash)."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from .. import proposals
@@ -8,6 +9,7 @@ from ..collect.mirror import mirror_path as _mp
 from ..util import Refused, SafetyError
 from ..writes import WriteRequest
 from .base import Executor, Plan, Step, Waiting
+from .provenance import verify_merged_tree
 
 
 class MergeExecutor(Executor):
@@ -43,17 +45,14 @@ class MergeExecutor(Executor):
             return str(mirror)
 
         def subtree():
+            tip = self.g(["--git-dir", str(mirror), "rev-parse", src_branch]).stdout.strip()
             self.g([*self.identity_args(), "subtree", "add", f"--prefix={s['prefix']}", str(mirror), src_branch,
-                    "-m", f"Merge {A} into {B} under {s['prefix']}/ (history preserved) [{pid}]"], cwd=tdir)
+                    "-m", f"Merge {A} into {B} under {s['prefix']}/ (history preserved) [{pid}]\n\n"
+                          f"Mimar-Proposal: {pid}\nMimar-Origin: {self.cfg.org}/{A}@{tip}"], cwd=tdir)
 
         def check_history():
-            tip = self.g(["--git-dir", str(mirror), "rev-parse", src_branch]).stdout.strip()
-            self.g(["merge-base", "--is-ancestor", tip, "HEAD"], cwd=tdir)
-            n_src = int(self.g(["--git-dir", str(mirror), "rev-list", "--count", src_branch]).stdout)
-            n_all = int(self.g(["rev-list", "--count", "HEAD"], cwd=tdir).stdout)
-            if n_all < n_src:
-                raise RuntimeError("merged history lost commits")
-            return f"source tip {tip[:10]} is an ancestor; {n_src} source commits present"
+            r = verify_merged_tree(tdir, s["prefix"], mirror, src_branch)
+            return json.dumps(r, sort_keys=True)
 
         def push():
             self.safe_push(["origin", f"{branch}:refs/heads/{branch}"], tdir, tgt_default, repo=B)
@@ -72,7 +71,8 @@ class MergeExecutor(Executor):
                  lambda: self.g(["checkout", "-q", "-B", branch, f"origin/{tgt_default}"], cwd=tdir) and None),
             Step("subtree-add", f"import {A} history under {s['prefix']}/ (no squash)",
                  ["git", "subtree", "add", f"--prefix={s['prefix']}", str(mirror), src_branch], subtree),
-            Step("verify-history", "check every source commit is reachable from the result", None, check_history),
+            Step("verify-history", f"check {B}'s {s['prefix']}/ tree equals {A}'s tip tree and the tip is an ancestor of the result",
+                 None, check_history),
             Step("push-branch", f"push {branch} (never the default branch, never forced)", ["git", "push", "origin", f"{branch}:refs/heads/{branch}"], push),
             Step("open-pr", f"open a PR in {B}", None, pr),
         ])

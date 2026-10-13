@@ -1,12 +1,14 @@
 """Split directories out of repo A into a new repo N with history (git filter-repo)."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from .. import proposals
 from ..util import Refused, SafetyError, filter_repo_path
 from ..writes import WriteRequest
 from .base import Executor, Plan, Step, filter_args
+from .provenance import origin_callback
 from .simple import apply_policy_fix
 
 
@@ -31,7 +33,8 @@ class SplitExecutor(Executor):
             fr = filter_repo_path()
             if not fr:
                 raise RuntimeError("git-filter-repo not found")
-            self.g(["filter-repo", *fargs, "--force"], cwd=cdir)  # --force is filter-repo's own flag, local clone only
+            # --force is filter-repo's own flag, local clone only; the callback stamps Mimar-Origin on every commit
+            self.g(["filter-repo", *fargs, "--commit-callback", origin_callback(self.cfg.org, A), "--force"], cwd=cdir)
 
         def create():
             try:
@@ -52,7 +55,7 @@ class SplitExecutor(Executor):
             self.safe_push(["origin", f"HEAD:refs/heads/{base}"], cdir, base, allow_default=True, repo=N)
 
         def verify():
-            return str(self._verify_counts(p, cdir))
+            return json.dumps(self.verify_filtered(p, A, base, dirs, cdir), sort_keys=True)
 
         def policy():
             notes = []
@@ -69,7 +72,8 @@ class SplitExecutor(Executor):
             Step("create-repo", f"create {self.cfg.org}/{N} ({'private' if private else 'public'}), same visibility as {A}",
                  None, create),
             Step("push-new", f"push history to {N}", ["git", "push", "origin", f"HEAD:refs/heads/{base}"], push),
-            Step("verify", f"check commit count equals commits touching {', '.join(dirs)} in {A}", None, verify, mutates=False),
+            Step("verify", f"check {N}'s tree equals {A}'s {', '.join(dirs)} tree and the commit map covers every touching commit",
+                 None, verify, mutates=False),
             Step("apply-policy", f"apply the org policy to {N}", None, policy),
         ])
 
@@ -84,17 +88,6 @@ class SplitExecutor(Executor):
         if pol.get("secret_scanning") == "public_only" and not private:
             fixes.append({"class": "secret_scanning", "repo": repo})
         return fixes
-
-    def _verify_counts(self, p, cdir) -> int:
-        s = p["subject"]
-        base = s.get("source_branch") or self.default_branch(s["source"])
-        src = self.ctx.work_dir(p["id"]) / "count-source"
-        self.clone(self.ctx.remote_url(s["source"]), src)
-        expected = int(self.g(["rev-list", "--count", f"origin/{base}", "--", *s["dirs"]], cwd=src).stdout)
-        got = int(self.g(["rev-list", "--count", "HEAD"], cwd=cdir).stdout)
-        if expected != got:
-            raise RuntimeError(f"commit count mismatch: {s['new_repo']} has {got}, {s['source']} has {expected} touching {s['dirs']}")
-        return got
 
     def after_phase(self, p, plan):
         if plan.phase == "create":

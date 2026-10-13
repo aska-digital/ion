@@ -34,6 +34,9 @@ def template(cand: dict, plan_lines: list[str]) -> dict:
         rationale = (f"Coupling score {cand['score']:.2f} (signals: " + ", ".join(f"{a}={b}" for a, b in ev["signals"].items()) + ").")
         risks = ["Open PRs and issues in the source repo stay behind until it is archived.",
                  "Anyone depending on the source repo's URL must move to the target."]
+        if s.get("cross_scope"):
+            title += " (crosses a boundary)"
+            risks.insert(0, "BOUNDARY: " + s["cross_scope"] + ". The two were kept apart on purpose.")
         if s.get("visibility_conflict"):
             title += " (visibility decision)"
             risks.insert(0, "VISIBILITY CONFLICT: one repo is public and the other private. Merging exposes or hides history.")

@@ -36,16 +36,14 @@ def own_login(ctx) -> str | None:
 
 
 def authorised(ctx, actor: str, maint: set[str]) -> tuple[bool, str]:
-    """May this GitHub actor's decision label count? Maintainers only, and never Mimar's own identity.
+    """May this GitHub actor's decision label count? Maintainers only.
 
-    In phase 1 Mimar runs on a maintainer's own token, so its login can coincide with a maintainer. Then the login
-    cannot be told apart from Mimar's, and Mimar's own label events are recognised by id instead (`mirrored_labels`)."""
-    if actor not in maint:
-        return False, f"label added by {actor or 'unknown'}, who is not a maintainer"
-    own = own_login(ctx)
-    if own and actor == own and own not in maint:
-        return False, "label added by mimar's own identity"
-    return True, ""
+    Mimar's own label events never reach this check: it puts decision labels on only to mirror a bus decision, and it
+    remembers the event id (`mirrored_labels`) so those are skipped. A login is not used to recognise Mimar, because in
+    phase 1 Mimar runs on a maintainer's own token and the two logins coincide."""
+    if actor in maint:
+        return True, ""
+    return False, f"label added by {actor or 'unknown'}, who is not a maintainer"
 
 
 def sync_labels(ctx, p: dict) -> dict:

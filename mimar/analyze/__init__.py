@@ -9,7 +9,7 @@ from ..collect.snapshot import latest_snapshots
 from ..config import parse_repo_override
 from ..gitrepo import GitRepo
 from ..util import iso
-from . import cohesion, coupling, health, lifecycle, policy
+from . import boundaries, cohesion, coupling, health, lifecycle, policy
 
 log = logging.getLogger("mimar")
 
@@ -22,6 +22,7 @@ def run_analyze(ctx) -> dict:
     overrides = {n: parse_repo_override(s.get("override_text"))[0] for n, s in snaps.items()}
     ignored = {n for n, o in overrides.items() if o.get("ignore")}
     live = {n: s for n, s in live.items() if n not in ignored}
+    filters = coupling.filters_from_cfg(cfg)
     tree: dict[str, set | None] = {}
     data: dict[str, coupling.RepoData] = {}
     for n, s in snaps.items():
@@ -34,7 +35,7 @@ def run_analyze(ctx) -> dict:
             if g.resolve_ref():
                 tree[n] = set(g.files())
                 if n in live:
-                    rd = coupling.load_repo(n, mp, s["default_branch"], s)
+                    rd = coupling.load_repo(n, mp, s["default_branch"], s, filters)
                     if rd:
                         data[n] = rd
     health_f = {n: health.check(s, tree.get(n), cfg) for n, s in snaps.items() if n not in cfg["exclude"] and n not in ignored}
@@ -42,18 +43,18 @@ def run_analyze(ctx) -> dict:
                 if n not in cfg["exclude"] and n not in ignored}
     pairs = []
     for a, b in itertools.combinations(sorted(data), 2):
-        p = coupling.pair_coupling(data[a], data[b], cfg["org"], int(cfg["thresholds"]["dup_min_bytes"]))
+        p = coupling.pair_coupling(data[a], data[b], cfg["org"], int(cfg["thresholds"]["dup_min_bytes"]), filters)
         if p["score"] >= 0.15:
             pairs.append(p)
     pairs.sort(key=lambda p: -p["score"])
     cohs = []
     for n, s in live.items():
         if n in data:
-            r = cohesion.analyze_repo(n, ctx.mirror_path(n), s["default_branch"], cfg, s)
+            r = cohesion.analyze_repo(n, ctx.mirror_path(n), s["default_branch"], cfg, s, filters)
             if r and r["candidates"]:
                 cohs.append(r)
     arch = lifecycle.archive_candidates(live, pairs, cfg)
-    result = {"gen": gen, "repos": sorted(snaps), "analyzed": sorted(data), "health": health_f, "policy": policy_f,
+    result = {"lifecycle": lifecycle.stages(snaps, cfg), "boundaries": boundaries.violations(snaps, pairs, cfg), "gen": gen, "repos": sorted(snaps), "analyzed": sorted(data), "health": health_f, "policy": policy_f,
               "coupling": pairs, "cohesion": cohs, "archive": arch, "lagging_forks": lifecycle.lagging_forks(snaps)}
     db.x("insert into analyses(ts,gen,blob) values(?,?,?)", (iso(), gen, json.dumps(result)))
     return result

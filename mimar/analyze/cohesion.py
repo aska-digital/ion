@@ -73,7 +73,7 @@ def cluster(nodes: list[str], edges: dict, thr: float = 0.3) -> list[list[str]]:
     return sorted(out, key=lambda g: g[0])
 
 
-def analyze_repo(name: str, path, ref: str | None, cfg, snap: dict | None = None) -> dict | None:
+def analyze_repo(name: str, path, ref: str | None, cfg, snap: dict | None = None, filters: dict | None = None) -> dict | None:
     repo = GitRepo(path, ref)
     if not repo.exists() or repo.resolve_ref() is None:
         return None
@@ -118,7 +118,9 @@ def analyze_repo(name: str, path, ref: str | None, cfg, snap: dict | None = None
                 k = tuple(sorted((u, tu)))
                 imp[k] = imp.get(k, 0) + 1
     # co-change edges
-    commits = repo.log_names(limit=400)
+    from .coupling import DEFAULT_FILTERS, ignore_reason
+    filters = filters or DEFAULT_FILTERS
+    commits = [c for c in repo.log_names(limit=400) if not ignore_reason(c["name"], c["email"], len(c["paths"]), filters)]
     touched: dict[str, set] = {u: set() for u in nodes}
     authors: dict[str, set] = {u: set() for u in nodes}
     for c in commits:

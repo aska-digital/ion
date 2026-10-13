@@ -6,7 +6,7 @@ import logging
 import re
 
 from .. import proposals, tracker
-from ..analyze import latest_analysis
+from ..analyze import boundaries, latest_analysis
 from ..approve.core import evaluate
 from ..collect.snapshot import latest_snapshots
 from ..execute import executor_for
@@ -32,8 +32,12 @@ def gather_candidates(ctx, analysis: dict, snaps: dict[str, dict]) -> list[dict]
         subject = {"source": src, "target": tgt, "prefix": src, "source_branch": snaps[src]["default_branch"],
                    "target_branch": snaps[tgt]["default_branch"], "visibility_conflict": pair["visibility_conflict"]}
         ev = {"signals": pair["signals"], **pair["evidence"]}
+        apart = boundaries.separation(sa, sb, cfg)
+        if apart:
+            subject["cross_scope"] = apart
         out.append({"key": f"merge:{src}>{tgt}", "kind": "merge", "subject": subject, "score": pair["score"], "evidence": ev,
-                    "persist": True})
+                    "persist": True,
+                    "blocked": apart if cfg["boundaries"]["block_cross_scope_merge"] else None})
     for r in analysis["cohesion"]:
         good = [c for c in r["candidates"] if scoring.split_qualifies(c, cfg)]
         if not good:
@@ -108,6 +112,9 @@ def run_propose(ctx, dry_run: bool = False) -> dict:
         streak = scoring.next_streak(row["streak"] if row else None, row["last_gen"] if row else None, gen)
         info = {"key": key, "kind": c["kind"], "score": c["score"], "streak": streak, "state": "pending"}
         res["candidates"].append(info)
+        if c.get("blocked"):
+            info["state"] = f"blocked by boundary: {c['blocked']}"
+            continue
         if not dry_run:
             db.x("insert into candidates(key,kind,subject,first_gen,last_gen,streak,score,evidence,updated) values(?,?,?,?,?,?,?,?,?)"
                  " on conflict(key) do update set last_gen=excluded.last_gen, streak=excluded.streak, score=excluded.score,"

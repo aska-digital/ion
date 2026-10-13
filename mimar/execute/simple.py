@@ -1,12 +1,14 @@
 """Small executors: archive, rename, policy_fix, health_fix, new_repo, move_code."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from .. import proposals
 from ..util import SafetyError
 from ..writes import WriteRequest
 from .base import Executor, Plan, Step, filter_args
+from .provenance import origin_callback
 
 
 def protection_body(settings: dict) -> dict:
@@ -165,13 +167,24 @@ class MoveCodeExecutor(Executor):
             fdir, tdir = w / "filtered", w / "target"
 
             def filt():
-                self.g(["filter-repo", *filter_args([D]), "--force"], cwd=fdir)
+                self.g(["filter-repo", *filter_args([D]), "--commit-callback", origin_callback(self.cfg.org, S), "--force"],
+                       cwd=fdir)
+
+            def verify_filter():
+                return json.dumps(self.verify_filtered(p, S, sb, [D], fdir), sort_keys=True)
+
+            def verify_import():
+                want = self.g(["rev-parse", "HEAD^{tree}"], cwd=fdir).stdout.strip()
+                got = self.g(["rev-parse", f"HEAD:{dest}"], cwd=tdir).stdout.strip()
+                if got != want:
+                    raise RuntimeError(f"tree mismatch: {T}/{dest} is {got}, filtered {D} is {want}")
+                return want
 
             def sub():
                 self.g(["checkout", "-q", "-B", branch, f"origin/{tb}"], cwd=tdir)
                 cur = self.g(["rev-parse", "--abbrev-ref", "HEAD"], cwd=fdir).stdout.strip()
                 self.g([*self.identity_args(), "subtree", "add", f"--prefix={dest}", str(fdir), cur, "-m",
-                        f"Move {D} from {S} (history preserved) [{pid}]"], cwd=tdir)
+                        f"Move {D} from {S} (history preserved) [{pid}]\n\nMimar-Proposal: {pid}"], cwd=tdir)
 
             def pr():
                 n = self.open_pr(T, branch, tb, f"Move {D} from {S} [{pid}]", f"Adds `{dest}/` with its history from {S}. {S} is cleaned up in a second PR after this merges.")
@@ -180,8 +193,11 @@ class MoveCodeExecutor(Executor):
             return Plan(pid, "move_code", "add", [
                 Step("clone-source", f"fresh clone of {S}", ["git", "clone", s_url, str(fdir)], lambda: self.clone(s_url, fdir)),
                 Step("filter", f"keep only {D}", ["git", "filter-repo", *filter_args([D])], filt),
+                Step("verify-filter", f"check the filtered tree equals {S}'s {D} tree and the commit map is complete", None,
+                     verify_filter, mutates=False),
                 Step("clone-target", f"clone {T}", ["git", "clone", t_url, str(tdir)], lambda: self.clone(t_url, tdir)),
                 Step("subtree-add", f"git subtree add --prefix={dest}", None, sub),
+                Step("verify-import", f"check {T}'s {dest}/ tree equals the filtered tree", None, verify_import, mutates=False),
                 Step("push", f"push {branch}", ["git", "push", "origin", f"{branch}:refs/heads/{branch}"],
                      lambda: self.safe_push(["origin", f"{branch}:refs/heads/{branch}"], tdir, tb, repo=T)),
                 Step("open-pr", f"open PR in {T}", None, pr)])

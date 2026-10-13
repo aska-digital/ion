@@ -14,7 +14,10 @@ MANIFESTS = ("pyproject.toml", "package.json", "requirements.txt", "Cargo.toml",
              "setup.cfg", "Pipfile", "requirements-dev.txt")
 BOILERPLATE = re.compile(r"(^|/)(LICENSE[^/]*|COPYING|CODE_OF_CONDUCT\.md|CONTRIBUTING\.md|SECURITY\.md|\.gitignore|"
                          r"\.github/.*|__init__\.py|conftest\.py)$", re.I)
-WEIGHTS = {"xref": 0.6, "dup": 0.6, "cochange": 0.6, "deps": 0.3, "prefix": 0.15}
+WEIGHTS = {"xref": 0.6, "dup": 0.6, "cochange": 0.6, "deps": 0.3, "prefix": 0.05}
+DEFAULT_FILTERS = {"max_changeset_size": 40, "min_revs": 5, "min_shared_revs": 3, "prefix_weight": 0.05,
+                   "bot_authors": ["dependabot", "renovate", "github-actions", "[bot]", "pre-commit-ci"],
+                   "own_names": [], "own_emails": []}
 MAX_FILES = 2500
 
 
@@ -36,6 +39,28 @@ def author_ids(login, name, email) -> set[str]:
     return ids
 
 
+def filters_from_cfg(cfg) -> dict:
+    """Co-change hygiene settings: `coupling:` in the config plus Mimar's own git identity (its commits, such as
+    fleet-wide policy PRs, are not evidence that two repos belong together)."""
+    f = {**DEFAULT_FILTERS, **(cfg.get("coupling") or {})}
+    ident = cfg.get("git_identity") or {}
+    f["own_names"] = [ident["name"].lower()] if ident.get("name") else []
+    f["own_emails"] = [ident["email"].lower()] if ident.get("email") else []
+    return f
+
+
+def ignore_reason(name: str | None, email: str | None, nfiles: int | None, f: dict) -> str | None:
+    """Why a commit is left out of co-change counting: 'huge', 'bot', 'own', or None to keep it."""
+    if nfiles is not None and nfiles > f["max_changeset_size"]:
+        return "huge"              # sweeps (licence headers, renames, mass config) say nothing about coupling
+    n, e = (name or "").lower(), (email or "").lower()
+    if (n and n in f["own_names"]) or (e and e in f["own_emails"]):
+        return "own"
+    if any(p.lower() in n or p.lower() in e for p in f["bot_authors"]):
+        return "bot"
+    return None
+
+
 @dataclass
 class RepoData:
     name: str
@@ -49,6 +74,7 @@ class RepoData:
     sigs: dict = field(default_factory=dict)            # path -> minhash signature (eligible text files)
     commits: list = field(default_factory=list)         # [(date_str, set(author ids))]
     eligible_bytes: int = 0
+    ignored: dict = field(default_factory=dict)         # co-change commits left out, by reason
 
 
 _PY_IMPORT = re.compile(r"^\s*(?:from\s+([A-Za-z_][\w]*)(?:\.[\w.]*)?\s+import|import\s+([A-Za-z_][\w]*))", re.M)
@@ -91,7 +117,7 @@ def parse_deps(path: str, text: str) -> set[str]:
     return {norm_name(d) for d in deps}
 
 
-def load_repo(name: str, path, ref: str | None, snap: dict | None = None) -> RepoData | None:
+def load_repo(name: str, path, ref: str | None, snap: dict | None = None, filters: dict | None = None) -> RepoData | None:
     repo = GitRepo(path, ref)
     if not repo.exists() or repo.resolve_ref() is None:
         return None
@@ -126,14 +152,24 @@ def load_repo(name: str, path, ref: str | None, snap: dict | None = None) -> Rep
         sig = minhash.signature(minhash.shingles(minhash.normalise_lines(t)))
         if sig:
             rd.sigs[p] = sig
-    commits = []
+    filters = filters or DEFAULT_FILTERS
+    commits, tried = [], False
     try:
         for c in repo.log_names(limit=400):
+            tried = True
+            why = ignore_reason(c["name"], c["email"], len(c["paths"]), filters)
+            if why:
+                rd.ignored[why] = rd.ignored.get(why, 0) + 1
+                continue
             commits.append((c["date"], author_ids(None, c["name"], c["email"])))
     except RuntimeError:
         pass
-    if not commits:
+    if not tried:
         for c in snap.get("commits") or []:
+            why = ignore_reason(c.get("name"), c.get("email"), c.get("files"), filters)
+            if why:
+                rd.ignored[why] = rd.ignored.get(why, 0) + 1
+                continue
             commits.append((c["date"], author_ids(c.get("login"), c.get("name"), c.get("email"))))
     rd.commits = commits
     return rd
@@ -194,7 +230,12 @@ def dup_signal(a: RepoData, b: RepoData, min_bytes: int = 200, near: float = 0.8
                    "shared_bytes": exact_bytes + near_bytes}
 
 
-def cochange_signal(a: RepoData, b: RepoData, min_shared: int = 3) -> tuple[float, dict]:
+def cochange_signal(a: RepoData, b: RepoData, min_shared: int = 3, min_revs: int = 5) -> tuple[float, dict]:
+    """Change coupling in the usual sense: shared revisions divided by the two repos' average number of revisions.
+
+    A "revision" is a day with a kept commit (see `ignore_reason`); a day is shared if the other repo has a commit by an
+    overlapping author on the same or an adjacent day. Repos with fewer than `min_revs` revisions, or pairs sharing fewer
+    than `min_shared`, give no signal at all."""
     def days(r: RepoData):
         d: dict[str, set] = {}
         for ts, ids in r.commits:
@@ -203,7 +244,9 @@ def cochange_signal(a: RepoData, b: RepoData, min_shared: int = 3) -> tuple[floa
                 d.setdefault(t.astimezone(dt.timezone.utc).date().isoformat(), set()).update(ids)
         return d
     da, db = days(a), days(b)
-    # a commit day matches if the other repo has a commit by an overlapping author within the same or adjacent day
+    if len(da) < min_revs or len(db) < min_revs:
+        return 0.0, {"shared_windows": 0, "too_few_revisions": [len(da), len(db)]}
+
     def near_day(day: str, other: dict, ids: set) -> bool:
         d0 = dt.date.fromisoformat(day)
         for off in (0, -1, 1):
@@ -216,8 +259,9 @@ def cochange_signal(a: RepoData, b: RepoData, min_shared: int = 3) -> tuple[floa
     shared = min(len(shared_a), len(shared_b))
     if shared < min_shared:
         return 0.0, {"shared_windows": shared}
-    union = len(da) + len(db) - shared
-    return min(1.0, shared / union if union else 0.0), {"shared_windows": shared, "days_a": len(da), "days_b": len(db)}
+    avg = (len(da) + len(db)) / 2
+    return min(1.0, shared / avg), {"shared_windows": shared, "days_a": len(da), "days_b": len(db),
+                                    "ignored_a": a.ignored, "ignored_b": b.ignored}
 
 
 def deps_signal(a: RepoData, b: RepoData) -> float:
@@ -231,27 +275,36 @@ def prefix_signal(a: str, b: str) -> float:
     return 1.0 if pa == pb and len(pa) >= 3 and a != b else 0.0
 
 
-def combine(signals: dict[str, float]) -> float:
-    """Noisy-or of weighted signals. Co-change alone is half-weighted: one author working on several repos on the
-    same days is weak evidence unless a content signal (xref, duplication, shared deps) agrees."""
+def combine(signals: dict[str, float], weights: dict[str, float] | None = None) -> float:
+    """Noisy-or of weighted signals.
+
+    - Co-change alone is half-weighted: one author working on several repos on the same days is weak evidence unless a
+      content signal (xref, duplication, shared deps) agrees.
+    - A shared name prefix counts only when some other signal is at least 0.15: `protean-*` repos share a prefix because
+      of their naming scheme, not because they should be merged, and the v1 live run showed that this alone flooded the
+      coupled-pairs list."""
+    w = {**WEIGHTS, **(weights or {})}
     sig = dict(signals)
     if max(sig.get("xref", 0), sig.get("dup", 0), sig.get("deps", 0)) < 0.3:
         sig["cochange"] = sig.get("cochange", 0) * 0.5
+    if max(sig.get(k, 0) for k in ("xref", "dup", "deps", "cochange")) < 0.15:
+        sig["prefix"] = 0.0
     p = 1.0
-    for k, w in WEIGHTS.items():
-        p *= 1 - w * max(0.0, min(1.0, sig.get(k, 0.0)))
+    for k, wk in w.items():
+        p *= 1 - wk * max(0.0, min(1.0, sig.get(k, 0.0)))
     return round(1 - p, 4)
 
 
-def pair_coupling(a: RepoData, b: RepoData, org: str | None = None, min_bytes: int = 200) -> dict:
+def pair_coupling(a: RepoData, b: RepoData, org: str | None = None, min_bytes: int = 200, filters: dict | None = None) -> dict:
+    f = filters or DEFAULT_FILTERS
     xa, eva = xref_directed(a, b.name, org)
     xb, evb = xref_directed(b, a.name, org)
     xref = min(1.0, max(xa, xb) + 0.2 * min(xa, xb))
     dup, dupev = dup_signal(a, b, min_bytes)
-    co, coev = cochange_signal(a, b)
+    co, coev = cochange_signal(a, b, f['min_shared_revs'], f['min_revs'])
     sig = {"xref": round(xref, 3), "dup": round(dup, 3), "cochange": round(co, 3),
            "deps": round(deps_signal(a, b), 3), "prefix": prefix_signal(a.name, b.name)}
-    return {"a": a.name, "b": b.name, "score": combine(sig), "signals": sig,
+    return {"a": a.name, "b": b.name, "score": combine(sig, {"prefix": f["prefix_weight"]}), "signals": sig,
             "evidence": {"a_refs_b": eva, "b_refs_a": evb, "dup": dupev, "cochange": coev,
                          "shared_deps": sorted(a.deps & b.deps)[:15]},
             "a_refs_b": xa, "b_refs_a": xb, "visibility_conflict": a.private != b.private}

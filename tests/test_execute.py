@@ -276,7 +276,7 @@ def test_split_pointer_refuses_until_verified(ctx):
 def test_split_verify_failure_stops_before_removal(ctx, world, monkeypatch):
     p = prep(ctx, "split", SPLIT)
     ex = executor_for(ctx, "split")
-    monkeypatch.setattr(type(ex), "_verify_counts", lambda self, p, c: (_ for _ in ()).throw(RuntimeError("commit count mismatch")))
+    monkeypatch.setattr(type(ex), "verify_filtered", lambda self, *a: (_ for _ in ()).throw(RuntimeError("tree mismatch")))
     with pytest.raises(RuntimeError, match="mismatch"):
         ex.apply(p, dry_run=False)
     assert not any(b.endswith("-remove") for b in branches(world, "mono"))
