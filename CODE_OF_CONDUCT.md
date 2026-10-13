@@ -7,5 +7,5 @@ By taking part in this project (issues, pull requests, discussions) you agree to
 
 ## Reporting and enforcement
 
-Report unacceptable behaviour privately to **a@askaconsult.com**. Reports are handled in confidence. The project
+Report unacceptable behaviour privately by opening a private advisory: <https://github.com/aska-digital/mimar/security/advisories/new>. Reports are handled in confidence. The project
 maintainers apply the enforcement guidelines described in the Covenant.

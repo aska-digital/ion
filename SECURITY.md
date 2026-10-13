@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-Please report security problems **privately** to **a@askaconsult.com**. Do not open a public issue or pull request for
+Please report security problems **privately** through GitHub private vulnerability reporting: <https://github.com/aska-digital/mimar/security/advisories/new>. Do not open a public issue or pull request for
 a vulnerability.
 
 Include what you found, how to reproduce it, and the version or commit. You should get an acknowledgement within a few
