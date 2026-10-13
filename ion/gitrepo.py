@@ -5,6 +5,8 @@ import re
 import subprocess
 from pathlib import Path
 
+from .util import git_env
+
 VENDOR_RE = re.compile(r"(^|/)(node_modules|vendor|vendored|third_party|dist|build|\.venv|venv|__pycache__|site-packages|"
                        r"\.next|target|coverage|\.git)(/|$)")
 LOCK_NAMES = {"package-lock.json", "yarn.lock", "pnpm-lock.yaml", "poetry.lock", "uv.lock", "Cargo.lock", "Gemfile.lock",
@@ -27,7 +29,8 @@ class GitRepo:
         self.ref = ref or "HEAD"
 
     def _git(self, *args: str, input: str | None = None) -> str:
-        p = subprocess.run(["git", "-C", self.path, *args], capture_output=True, text=True, input=input, errors="replace")
+        p = subprocess.run(["git", "-C", self.path, *args], capture_output=True, text=True, input=input, errors="replace",
+                           env=git_env())
         if p.returncode != 0:
             raise RuntimeError(p.stderr.strip()[:300])
         return p.stdout
@@ -59,7 +62,7 @@ class GitRepo:
         if not shas:
             return {}
         p = subprocess.run(["git", "-C", self.path, "cat-file", "--batch"], input=("\n".join(shas) + "\n").encode(),
-                           capture_output=True)
+                           capture_output=True, env=git_env())
         data, out, i = p.stdout, {}, 0
         for sha in shas:
             nl = data.index(b"\n", i)
