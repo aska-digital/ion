@@ -6,7 +6,8 @@ import json
 from .util import Waiting, iso
 
 LABELS = {"ion:proposal": "5319e7", "ion:approved": "0e8a16", "ion:rejected": "b60205", "ion:hold": "fbca04",
-          "ion:dashboard": "ededed"}
+          "ion:dashboard": "ededed", "needs decision": "D93F0B"}
+NEEDS_DECISION = "needs decision"   # org-wide label: the command-centre decision feed
 KINDS = ["merge", "split", "archive", "rename", "move_code", "policy_fix", "health_fix", "new_repo", "autofix"]
 STATES = ["awaiting-approval", "approved", "held", "executing", "done", "failed", "rejected", "dropped"]
 
@@ -16,7 +17,7 @@ def repo_path(ctx) -> str:
 
 
 def ensure_labels(ctx) -> None:
-    if ctx.db.kv_get("labels_ready"):
+    if ctx.db.kv_get("labels_ready:v2"):
         return
     wanted = dict(LABELS)
     wanted.update({f"kind:{k}": "1d76db" for k in KINDS})
@@ -28,7 +29,7 @@ def ensure_labels(ctx) -> None:
             return                                      # cap reached: try again next run
         except Exception:  # noqa: BLE001  (422 already exists)
             pass
-    ctx.db.kv_set("labels_ready", True)
+    ctx.db.kv_set("labels_ready:v2", True)
 
 
 def _changeset_section(ctx, p: dict) -> list[str]:
@@ -69,6 +70,27 @@ def render_body(ctx, p: dict, plan_lines: list[str], rollback: list[str], approv
     return "\n".join(lines)
 
 
+def _sync_needs_decision(ctx, p: dict, number: int) -> None:
+    """`needs decision` is on the issue exactly while the proposal awaits a maintainer.
+
+    The flag in proposal state is what we last applied, so a refresh that changes
+    nothing writes nothing. A capped write leaves the flag stale and retries next refresh.
+    """
+    want = p["status"] == "awaiting-approval"
+    if bool(p["state"].get("needs_decision_label")) == want:
+        return
+    try:
+        if want:
+            ctx.writes.tracker("add_label", number=int(number), labels=[NEEDS_DECISION])
+        else:
+            ctx.writes.tracker("remove_label", number=int(number), label=NEEDS_DECISION)
+    except Waiting:
+        return
+    except Exception:  # noqa: BLE001  (e.g. removing a label that is not there)
+        pass
+    ctx.db.set_state(p["id"], needs_decision_label=want)
+
+
 def upsert_issue(ctx, p: dict, body: str) -> int | None:
     if ctx.cfg.is_paused():
         return p.get("issue_number")
@@ -76,10 +98,14 @@ def upsert_issue(ctx, p: dict, body: str) -> int | None:
     title = f"[{p['id']}] {p['text'].get('title') or p['title']}"
     if p.get("issue_number"):
         ctx.writes.tracker("edit_issue_body", number=int(p["issue_number"]), title=title, body=body)
+        _sync_needs_decision(ctx, p, int(p["issue_number"]))
         return p["issue_number"]
-    issue = ctx.writes.tracker("open_issue", title=title, body=body,
-                               labels=["ion:proposal", f"kind:{p['kind']}", f"state:{p['status']}"])
+    labels = ["ion:proposal", f"kind:{p['kind']}", f"state:{p['status']}"]
+    if p["status"] == "awaiting-approval":
+        labels.append(NEEDS_DECISION)
+    issue = ctx.writes.tracker("open_issue", title=title, body=body, labels=labels)
     ctx.db.x("update proposals set issue_number=? where id=?", (issue["number"], p["id"]))
+    ctx.db.set_state(p["id"], needs_decision_label=p["status"] == "awaiting-approval")
     return issue["number"]
 
 

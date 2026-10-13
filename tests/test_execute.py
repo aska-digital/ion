@@ -395,6 +395,8 @@ def test_health_fix_opens_readme_pr(ctx, world):
     assert "core lib" in sh("git", "--git-dir", str(world / "alpha-core.git"), "show", f"ion/{p['id']}:README.md")
     author = sh("git", "--git-dir", str(world / "alpha-core.git"), "log", "-1", "--format=%an <%ae>%n%B", f"ion/{p['id']}")
     assert "ion <ion@example.com>" in author and "Co-Authored-By" not in author      # config identity, no AI trailer
+    label_writes = [w for w in ctx.gh.writes if w[0] == "POST" and "/alpha-core/issues/1/labels" in w[1]]
+    assert label_writes and label_writes[-1][2] == {"labels": ["needs decision"]}
 
 
 def test_health_fix_refuses_a_symlinked_readme(ctx, world, tmp_path):

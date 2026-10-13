@@ -101,7 +101,7 @@ A failed delivery is queued in the database and retried on the next run. A diges
 
 ## Approval flow
 
-1. Ion files an issue `[P-0007] merge a into b` in the tracker repo, labelled `ion:proposal`, `kind:<k>`, `state:<s>`. The body holds the evidence, the changesets in order, the exact commands the executor will run, the rollback, the blast radius and **`plan-sha256: <hash>`**. Ion edits the body in place and never comments.
+1. Ion files an issue `[P-0007] merge a into b` in the tracker repo, labelled `ion:proposal`, `kind:<k>`, `state:<s>` and, while it waits, the org-wide `needs decision` label. That label comes off when the proposal leaves `awaiting-approval`, so a dashboard can treat it as the live decision queue. The body holds the evidence, the changesets in order, the exact commands the executor will run, the rollback, the blast radius and **`plan-sha256: <hash>`**. Ion edits the body in place and never comments. Pull requests ion opens also carry `needs decision`, because they wait for a maintainer to merge them.
 2. A maintainer decides in one of three ways:
    - adds `ion:approved`, `ion:rejected` or `ion:hold`. Ion reads the issue **timeline** and takes the actor of the label event. A decision label from anyone who is not a maintainer (for the repos involved) is recorded as ignored and **taken off again** (one API call, no comment);
    - sends a Divan Bus message `ion approve|reject|hold P-0007` (optionally `plan-sha256:<prefix>`) from a seat in `bus.maintainer_seats`, after its signature is verified. Ion mirrors the decision onto the issue as the label, so the record lives on GitHub;

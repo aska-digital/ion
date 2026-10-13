@@ -74,7 +74,7 @@ class MergeExecutor(Executor):
             Step("verify-history", f"check {B}'s {s['prefix']}/ tree equals {A}'s tip tree and the tip is an ancestor of the result",
                  None, check_history),
             Step("push-branch", f"push {branch} (never the default branch, never forced)", ["git", "push", "origin", f"{branch}:refs/heads/{branch}"], push),
-            Step("open-pr", f"open a PR in {B}", None, pr),
+            Step("open-pr", f"open a PR in {B} and label it `needs decision`", None, pr),
         ])
 
     def after_phase(self, p, plan):
@@ -125,7 +125,7 @@ class MergeExecutor(Executor):
             Step("edit-readme", "replace README with a pointer", None, edit),
             Step("push", f"push {branch}", ["git", "push", "origin", f"{branch}:refs/heads/{branch}"],
                  lambda: self.safe_push(["origin", f"{branch}:refs/heads/{branch}"], pdir, base, repo=A)),
-            Step("open-pr", f"open the pointer PR in {A}", None, pr)])
+            Step("open-pr", f"open the pointer PR in {A} and label it `needs decision`", None, pr)])
 
     def _await_pointer(self, p, s) -> Plan:
         def chk():

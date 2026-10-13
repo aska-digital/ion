@@ -141,7 +141,7 @@ class SplitExecutor(Executor):
             Step("remove-dirs", f"git rm {', '.join(dirs)} and add MOVED.md", ["git", "rm", "-r", *dirs], edit),
             Step("push", f"push {branch}", ["git", "push", "origin", f"{branch}:refs/heads/{branch}"],
                  lambda: self.safe_push(["origin", f"{branch}:refs/heads/{branch}"], w, base, repo=A)),
-            Step("open-pr", f"open the removal PR in {A}", None, pr)])
+            Step("open-pr", f"open the removal PR in {A} and label it `needs decision`", None, pr)])
 
     def verify(self, p: dict) -> bool:
         return self.db.ledger_done(p["id"], "create.verify")

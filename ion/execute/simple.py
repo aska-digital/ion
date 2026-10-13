@@ -141,7 +141,7 @@ class HealthFixExecutor(Executor):
             Step("edit", "add README.md skeleton", None, edit),
             Step("push", f"push {branch}", ["git", "push", "origin", f"{branch}:refs/heads/{branch}"],
                  lambda: self.safe_push(["origin", f"{branch}:refs/heads/{branch}"], w, base, repo=repo)),
-            Step("open-pr", "open the PR", None, pr)])
+            Step("open-pr", "open the PR and label it `needs decision`", None, pr)])
 
     def after_phase(self, p, plan):
         proposals.set_status(self.db, p["id"], "done")
@@ -200,7 +200,7 @@ class MoveCodeExecutor(Executor):
                 Step("verify-import", f"check {T}'s {dest}/ tree equals the filtered tree", None, verify_import, mutates=False),
                 Step("push", f"push {branch}", ["git", "push", "origin", f"{branch}:refs/heads/{branch}"],
                      lambda: self.safe_push(["origin", f"{branch}:refs/heads/{branch}"], tdir, tb, repo=T)),
-                Step("open-pr", f"open PR in {T}", None, pr)])
+                Step("open-pr", f"open PR in {T} and label it `needs decision`", None, pr)])
         if phase == "remove":
             from .base import Waiting
             branch = f"ion/{pid}-remove"
@@ -230,7 +230,7 @@ class MoveCodeExecutor(Executor):
                 Step("remove", f"git rm -r {D}", ["git", "rm", "-r", D], edit),
                 Step("push", f"push {branch}", ["git", "push", "origin", f"{branch}:refs/heads/{branch}"],
                      lambda: self.safe_push(["origin", f"{branch}:refs/heads/{branch}"], sdir, sb, repo=S)),
-                Step("open-pr", f"open PR in {S}", None, pr)])
+                Step("open-pr", f"open PR in {S} and label it `needs decision`", None, pr)])
         return Plan(pid, "move_code", "done")
 
     def after_phase(self, p, plan):
