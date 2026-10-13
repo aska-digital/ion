@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 
+from ..config import parse_repo_override
 from ..util import days_since
 
 
@@ -20,6 +21,20 @@ def has_root_file(files: set[str] | None, wanted: str) -> bool | None:
     return False
 
 
+def override_widenings(cfg, ov: dict) -> list[str]:
+    """What a repo's `.github/ion.yml` asks for beyond the org config (and so does not get)."""
+    from .policy import LEVELS, org_action
+    out = []
+    org = {m.lower() for m in cfg["maintainers"]}
+    extra = [m for m in ov.get("maintainers") or [] if m.lower() not in org]
+    if extra:
+        out.append("maintainers not in the org list: " + ", ".join(extra))
+    for key, lvl in sorted((ov.get("policy_actions") or {}).items()):
+        if LEVELS.index(lvl) > LEVELS.index(org_action(cfg, key)):
+            out.append(f"policy_actions.{key}: {lvl} is above the org level {org_action(cfg, key)}")
+    return out
+
+
 def check(snap: dict, files: set[str] | None, cfg, now=None) -> list[dict]:
     th = cfg["thresholds"]
     f: list[dict] = []
@@ -34,6 +49,10 @@ def check(snap: dict, files: set[str] | None, cfg, now=None) -> list[dict]:
         return f
     if snap.get("override_error"):
         add("bad_override", "info", snap["override_error"])
+    elif snap.get("override_text"):
+        widen = override_widenings(cfg, parse_repo_override(snap["override_text"])[0])
+        if widen:
+            add("override_widens", "warn", ".github/ion.yml can only narrow the org config; ignored: " + "; ".join(widen))
     if files is not None:
         if has_root_file(files, "README.md") is False:
             add("missing_readme", "warn", "no README at the repository root", fixable=True)

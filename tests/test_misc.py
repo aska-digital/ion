@@ -5,12 +5,14 @@ import sys
 import pytest
 
 from conftest import FakeBus, make_ctx
-from helpers import MERGE, new_proposal
+from helpers import MERGE, new_proposal, set_override
 from ion import cli, notify, report, tracker
-from ion.analyze import run_analyze
+from ion.analyze import policy, run_analyze
 from ion.collect import run_collect
 from ion.config import ConfigError, load_config
+from ion.execute import executor_for
 from ion.propose.engine import run_propose
+from ion.util import Refused
 
 
 # ---- config ------------------------------------------------------------------------------
@@ -36,6 +38,28 @@ def test_invalid_config_rejected():
         load_config(None, {"org": "o", "notifiers": [{"type": "pager"}]})
     with pytest.raises(ConfigError):
         load_config(None, {"org": None}).org
+
+
+def test_repo_override_can_lower_but_not_raise_policy_actions():
+    cfg = load_config(None, {"org": "o", "auto_apply": ["dependabot_alerts"],
+                             "policy_actions": {"branch_protection": "issue", "secret_scanning": "fix"}})
+    ov = {"policy_actions": {"branch_protection": "fix", "secret_scanning": "log", "dependabot_alerts": "issue",
+                             "required_files": "fix"}}
+    assert policy.action_for(cfg, ov, "branch_protection") == "issue"               # cannot raise to fix
+    assert policy.action_for(cfg, ov, "required_file:README.md") == "issue"         # nor an unlisted class
+    assert policy.action_for(cfg, ov, "secret_scanning") == "log"                   # can lower
+    assert policy.action_for(cfg, ov, "dependabot_alerts") == "issue"               # lowers legacy auto_apply too
+
+
+def test_repo_override_cannot_turn_on_unattended_fixes(ctx):
+    run_collect(ctx)
+    ctx.cfg["policy_actions"] = {"dependabot_alerts": "issue"}
+    set_override(ctx, "old-tool", "maintainers: [mallory]\npolicy_actions: {dependabot_alerts: fix}\n")
+    p = new_proposal(ctx, "policy_fix", {"class": "dependabot_alerts", "repo": "old-tool"})
+    with pytest.raises(Refused, match="no verified approval"):
+        executor_for(ctx, "policy_fix").apply(p, dry_run=False)
+    widens = [f["detail"] for f in run_analyze(ctx)["health"]["old-tool"] if f["code"] == "override_widens"]
+    assert len(widens) == 1 and "mallory" in widens[0] and "policy_actions.dependabot_alerts: fix" in widens[0]
 
 
 def test_no_org_specific_paths_in_code():
