@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ion reads the whole org. It changes nothing without your yes.</title>
+<meta name="description" content="Ion is a steward bot for a GitHub organisation. It watches every repo, spots drift from your policy, and proposes merges, splits and fixes as exact plans. It never changes structure without a maintainer's approval.">
+<meta name="theme-color" content="#06090d">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="canonical" href="https://aska-digital.github.io/ion/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Ion">
+<meta property="og:title" content="Ion reads the whole org. It changes nothing without your yes.">
+<meta property="og:description" content="A steward bot for a GitHub organisation: it proposes merges, splits and policy fixes as exact, hashed plans, and writes only after a maintainer approves that plan.">
+<meta property="og:url" content="https://aska-digital.github.io/ion/">
+<meta property="og:image" content="https://aska-digital.github.io/ion/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A lattice of repository nodes with one amber ion at the centre, beside the words: Ion reads the whole org. It changes nothing without your yes. Below, the six stages collect, analyze, propose, approve, execute, report, with approve marked as the maintainer's gate.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Ion reads the whole org. It changes nothing without your yes.">
+<meta name="twitter:description" content="A steward bot for a GitHub organisation: exact hashed plans, maintainer approval, capped writes, a circuit breaker.">
+<meta name="twitter:image" content="https://aska-digital.github.io/ion/og.png">
+<meta name="twitter:image:alt" content="A lattice of repository nodes with one amber ion at the centre, beside the words: Ion reads the whole org. It changes nothing without your yes. Below, the six stages collect, analyze, propose, approve, execute, report, with approve marked as the maintainer's gate.">
+<script>document.documentElement.className += ' js';</script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="lattice" aria-hidden="true"></canvas>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="bar">
+  <a class="brand" href="index.html" aria-label="Ion, home">
+    <svg width="26" height="26" viewBox="0 0 64 64" aria-hidden="true"><g stroke="#5fd4e6" stroke-width="2.4"><path d="M14 14h36M14 50h36M14 14v36M50 14v36M14 14l18 18M50 14L32 32M14 50l18-18M50 50L32 32" opacity=".55"/></g><g fill="#5fd4e6"><circle cx="14" cy="14" r="4.2"/><circle cx="50" cy="14" r="4.2"/><circle cx="14" cy="50" r="4.2"/><circle cx="50" cy="50" r="4.2"/></g><circle cx="32" cy="32" r="7" fill="#e8a33d"/><path d="M32 27.6v8.8M27.6 32h8.8" stroke="#06090d" stroke-width="2.6" stroke-linecap="round"/></svg>
+    <span>Ion</span><small>Org steward</small>
+  </a>
+  <nav aria-label="Main"><ul>
+    <li><a href="index.html" aria-current="page">Abstract</a></li>
+    <li><a href="guide.html">Guide</a></li>
+    <li><a href="https://github.com/aska-digital/ion/blob/main/SPEC.md">Spec</a></li>
+    <li><a href="https://github.com/aska-digital/ion">GitHub</a></li>
+  </ul></nav>
+</div></header>
+
+<div class="layout">
+<aside class="index" data-title="Infographic abstract" data-page="abstract" aria-label="Section index"></aside>
+<main id="main" tabindex="-1">
+
+<!-- 00 ABSTRACT -->
+<section class="panel hero" id="abstract" data-idx="00" data-short="Abstract">
+  <div class="plabel"><b><span class="k">00</span> // Infographic abstract</b><span class="tags"><span class="tag t-built">Built · Apache-2.0</span><span class="tag t-hum">Approval before structure</span></span></div>
+  <p class="eyebrow">A steward bot for a GitHub organisation</p>
+  <h1>Ion reads the whole org. It changes <em>nothing without your yes.</em></h1>
+  <div class="byline"><span class="who">Aska Digital</span><span aria-hidden="true">&middot;</span><a href="https://github.com/aska-digital/ion">github.com/aska-digital/ion</a><span aria-hidden="true">&middot;</span><span>Python 3.12 · runs on a schedule</span></div>
+  <p class="abstract">Ion watches every repository in your organisation. It spots drift from your policy, finds repos that belong together or apart, and writes up each change as an exact plan: the evidence, the commands it would run, the way back, and how much of the org it would touch. Then it stops. <span class="hum">A maintainer approves that exact plan, or nothing happens.</span> Only then does ion write, through capped, logged requests, with a circuit breaker that halts any run touching too much at once. Archiving a repo always needs its own yes. Ion never deletes, never force-pushes, and never merges its own pull requests.</p>
+  <div class="cta">
+    <a class="btn primary" href="#pipeline">Try the gate yourself <span class="arr" aria-hidden="true">&rarr;</span></a>
+    <a class="btn" href="guide.html">Run ion on your org <span class="arr" aria-hidden="true">&rarr;</span></a>
+    <a class="btn" href="https://github.com/aska-digital/ion">Repository <span class="arr" aria-hidden="true">&rarr;</span></a>
+  </div>
+  <div class="stats" aria-label="Ion in numbers">
+    <div class="stat hl"><div class="v">0</div><div class="l">structural changes without a maintainer&rsquo;s approval. The gate is checked in code, on every run, dry runs included.</div><div class="src"><span class="tag t-hum">The rule</span></div></div>
+    <div class="stat"><div class="v">6</div><div class="l">stages: collect, analyze, propose, approve, execute, report. Only the fifth writes.</div><div class="src"><span class="tag t-built">Pipeline</span></div></div>
+    <div class="stat"><div class="v">9</div><div class="l">kinds of proposal, from merge and split to policy fix and fleet-wide autofix.</div><div class="src"><span class="tag t-spec">SPEC §2.3</span></div></div>
+    <div class="stat"><div class="v">25<small>%</small></div><div class="l">of the org in one run trips the circuit breaker, before anything is written.</div><div class="src"><span class="tag t-spec">Default guard</span></div></div>
+  </div>
+</section>
+<div class="link" aria-hidden="true"><i></i></div>
+
+<!-- 01 PROBLEM -->
+<section class="panel reveal" id="problem" data-idx="01" data-short="Why an org drifts">
+  <div class="plabel"><b><span class="k">01</span> // Why an org drifts</b><span class="tags"><span class="tag">The problem</span></span></div>
+  <h2>Repos multiply. Nobody is watching the shape of the whole.</h2>
+  <p class="lede">Each repository gets care. The organisation around them does not, because no person has the whole map in their head.</p>
+  <div class="cards">
+    <article class="card"><p class="ck">Drift</p><h3>Policy fades repo by repo</h3><p>Branch protection missing here, secret scanning off there, a public repo with no licence. Each gap is small. Together they are the org&rsquo;s real posture, and nobody chose it.</p></article>
+    <article class="card"><p class="ck">Duplicates</p><h3>Two repos, one project</h3><p>Code copied between repos, commits landing in both on the same days, readmes pointing at each other. The split made sense once. The evidence that it stopped making sense sits unread in the history.</p></article>
+    <article class="card"><p class="ck">Stale weight</p><h3>Finished work never gets put away</h3><p>Experiments and one-off tools stay active for years because archiving feels risky and nobody owns the decision. New people cannot tell what is alive.</p></article>
+    <article class="card"><p class="ck">Fear of the fix</p><h3>Cleaning up by hand is scary</h3><p>Merging two repos without losing history, splitting one safely, proving nothing was dropped: doable, fiddly, and easy to get subtly wrong. So it does not happen.</p></article>
+  </div>
+  <p>Ion&rsquo;s answer is a division of labour. The machine does the watching, the measuring and the careful writing. People keep the deciding. The next panel is that bargain as a working model.</p>
+</section>
+<div class="link" aria-hidden="true"><i></i></div>
+
+<!-- 02 PIPELINE -->
+<section class="panel reveal" id="pipeline" data-idx="02" data-short="The pipeline, in your hands">
+  <div class="plabel"><b><span class="k">02</span> // The pipeline, in your hands</b><span class="tags"><span class="tag t-built">Working model</span><span class="tag t-hum">You are the maintainer</span></span></div>
+  <h2>Read widely. Write narrowly. Wait in the middle.</h2>
+  <p>Every ion run walks the same six stages. The first three only read and write words. The fourth belongs to a person. The fifth is the only stage that can change anything, and it re-checks the fourth before it moves. Run the model, then try to break the rules: execute without approving, approve and then change the plan, or widen the blast radius past a quarter of the org.</p>
+
+  <div class="sim" id="sim">
+    <div class="stages" role="img" aria-label="Six stages: collect, analyze, propose, approve (the maintainer's gate), execute, report.">
+      <div class="stage"><div class="sn">Stage 1</div><div class="st-name">collect</div><div class="ss" data-idle="reads metadata and mirrors">reads metadata and mirrors</div></div>
+      <div class="stage"><div class="sn">Stage 2</div><div class="st-name">analyze</div><div class="ss" data-idle="measures, no language model">measures, no language model</div></div>
+      <div class="stage"><div class="sn">Stage 3</div><div class="st-name">propose</div><div class="ss" data-idle="writes the plan and its hash">writes the plan and its hash</div></div>
+      <div class="stage gate"><div class="sn">Stage 4 · gate</div><div class="st-name">approve</div><div class="ss" data-idle="a maintainer decides">a maintainer decides</div></div>
+      <div class="stage"><div class="sn">Stage 5</div><div class="st-name">execute</div><div class="ss" data-idle="the only stage that writes">the only stage that writes</div></div>
+      <div class="stage"><div class="sn">Stage 6</div><div class="st-name">report</div><div class="ss" data-idle="dashboard and digest">dashboard and digest</div></div>
+    </div>
+
+    <div class="planline">
+      <span><b>Plan</b><span id="sim-plan">none yet</span></span>
+    </div>
+    <div class="planline" style="border-top:0;margin-top:6px;padding-top:0">
+      <span><b>Fingerprint</b><span class="hash" id="sim-hash">plan-sha256: …</span></span>
+      <span><b>Approval</b><span id="sim-approved">no approval recorded</span></span>
+    </div>
+
+    <div class="controls">
+      <button class="btn primary small" type="button" id="b-run">Run ion</button>
+      <span class="sep" aria-hidden="true"></span>
+      <button class="btn hum small" type="button" id="b-approve">Approve this plan</button>
+      <button class="btn small" type="button" id="b-hold">Hold</button>
+      <button class="btn small" type="button" id="b-replan">Change the plan</button>
+      <span class="sep" aria-hidden="true"></span>
+      <button class="btn small" type="button" id="b-execute">Execute (--apply)</button>
+      <button class="btn small" type="button" id="b-reset">Reset</button>
+    </div>
+
+    <div class="blast">
+      <label for="sim-blast">Blast radius of this run</label>
+      <input type="range" id="sim-blast" min="1" max="40" step="1" value="6" aria-describedby="sim-blastval">
+      <span id="sim-blastval">6 of 80 repos (8%)</span>
+      <div class="meter" id="sim-meter" role="img" aria-label="Meter: share of the org this run would touch. The amber mark is the 25 percent circuit-breaker guard."><i id="sim-meterfill"></i><span class="mark" style="left:25%"></span></div>
+      <span>amber mark = 25% guard</span>
+    </div>
+
+    <p class="verdict" id="sim-verdict" aria-live="polite"></p>
+    <div class="log" id="sim-log" aria-label="Model run log"></div>
+  </div>
+  <p class="cap">A teaching model with invented repos and a short stand-in fingerprint. The rules are ion&rsquo;s real ones: approval binds to the plan hash (<a href="https://github.com/aska-digital/ion/blob/main/SPEC.md">SPEC §2.4</a>), the breaker guards are the shipped defaults (<a href="guide.html#config">guide</a>), and the executor re-derives approval from the record instead of trusting a stored flag.</p>
+
+  <div class="cards c3">
+    <article class="card"><p class="ck">Collect</p><h3>One query, local mirrors</h3><p>Metadata comes from one batched GraphQL query under a points budget. File contents come from bare git mirrors on the machine, never from repeated API calls.</p></article>
+    <article class="card"><p class="ck">Analyze</p><h3>Counting, not guessing</h3><p>Health, policy drift, coupling, cohesion, lifecycle and tag boundaries. All deterministic. A language model may later help word a proposal. It cannot invent one, add a repo, or raise a score.</p></article>
+    <article class="card"><p class="ck">Report</p><h3>One dashboard, edited in place</h3><p>An &ldquo;Org health&rdquo; issue lists what waits, what is queued, what is held and what just finished. Ion edits it in place and never comments. A short digest goes to your notifiers, only when something changed.</p></article>
+  </div>
+</section>
+<div class="link" aria-hidden="true"><i></i></div>
+
+<!-- 03 APPROVAL -->
+<section class="panel reveal" id="approval" data-idx="03" data-short="Approval is for one plan">
+  <div class="plabel"><b><span class="k">03</span> // Approval is for one plan</b><span class="tags"><span class="tag t-hum">Maintainer only</span><span class="tag t-spec">SPEC §2.4</span></span></div>
+  <h2>A yes means: yes to these commands, seen by this person.</h2>
+  <p class="lede">Each proposal is one issue in a private tracker repo. Its body holds the evidence, the ordered steps, the exact commands, the rollback, the blast radius, and a fingerprint of the plan: <code>plan-sha256: …</code>, a hash that changes completely if one command changes.</p>
+  <p>A maintainer can answer in three ways. All three are checked the same way: who acted, whether they maintain every repo involved, and which fingerprint was on display when they acted.</p>
+  <div class="cards c3">
+    <article class="card hum"><p class="ck">Channel 1</p><h3>A label on the issue</h3><p>Add <code>ion:approved</code>, <code>ion:rejected</code> or <code>ion:hold</code>. Ion reads the issue timeline to find who applied it. A decision label from a non-maintainer is recorded as ignored and taken off again, with no comment.</p></article>
+    <article class="card hum"><p class="ck">Channel 2</p><h3>A signed bus message</h3><p>Send <code>ion approve P-0007</code> over the Divan Bus from an approved seat. The signature is verified, then ion mirrors the decision onto the issue as the label, so the public record stays on GitHub.</p></article>
+    <article class="card hum"><p class="ck">Channel 3</p><h3>A tick on the dashboard</h3><p>Tick the approve or hold box on the Org health issue. Ion checks the edit history: every edit since its own last write must be by a maintainer, or the tick fails closed and counts for nothing.</p></article>
+  </div>
+  <p class="pull">Change the plan and the fingerprint changes. The old yes stops counting, the label comes off, and ion asks again.</p>
+  <ul class="plain">
+    <li>Approvals expire after 14 days by default. The label comes off then too.</li>
+    <li>You can require more than one approver, in total or per proposal kind.</li>
+    <li>A rejected idea stays quiet for a cooldown period, unless its score rises sharply.</li>
+    <li>Archiving always needs its own approval, even right after an approved merge.</li>
+  </ul>
+  <p class="note">This reviewer-shaped gate is the heart of ion, and it is why the project sits with the amp team: the work is reviewing. The machine prepares a case worth deciding. A reviewer decides it. See <a href="#name">why the name fits</a>.</p>
+</section>
+<div class="link" aria-hidden="true"><i></i></div>
+
+<!-- 04 SAFETY -->
+<section class="panel reveal" id="safety" data-idx="04" data-short="How writes stay safe">
+  <div class="plabel"><b><span class="k">04</span> // How writes stay safe</b><span class="tags"><span class="tag t-built">Enforced in code</span><span class="tag t-spec">SPEC §2.5</span></span></div>
+  <h2>Approved is necessary. It is not sufficient.</h2>
+  <p>Even a fully approved run passes through four more checks before and during writing. Each one can stop it without touching anything.</p>
+  <div class="cards">
+    <article class="card"><p class="ck">Typed writes</p><h3>Every write is a named request</h3><p>One file, <code>ion/writes.py</code>, is allowed to call a mutating GitHub API. A test enforces that. Each request has a known type, a checked shape, and a per-run cap. Over the cap, work waits for the next run instead of failing. Pushes may only target <code>ion/*</code> branches, never a default branch.</p><p class="big">5 PRs · 1 archive</p><p>Default caps per run for the two loudest write types. Yours to set.</p></article>
+    <article class="card"><p class="ck">Circuit breaker</p><h3>A run that looks wrong stops itself</h3><p>Before writing, the run totals its own blast radius. During the run, every write is checked again. Trip any guard and the run aborts, says so in the digest, and records the trip where <code>ion status</code> shows it.</p><p class="big">25% · 2 · 150</p><p>Defaults: share of repos touched, archives per run, total writes. Any branch-protection weakening also trips it.</p></article>
+    <article class="card"><p class="ck">Exact verification</p><h3>Moves are proved, not counted</h3><p>A merge is accepted only when the imported tree matches the source tree exactly and the source tip is an ancestor of the result. A split must match the rewrite tool&rsquo;s commit map, commit for commit, plus tree equality. Every moved commit carries an <code>Ion-Origin: org/repo@sha</code> trailer saying where it came from. Counting commits is not a check, so ion never does it.</p></article>
+    <article class="card"><p class="ck">Ledger and kill switch</p><h3>Stop anytime, resume cleanly</h3><p><code>ion pause</code> stops every executor and tracker write. Reads still work. Each step writes a before and after row, so a crashed or interrupted run resumes without repeating finished steps. <code>ion explain P-0007</code> shows the whole history of one proposal.</p></article>
+  </div>
+  <p>Underneath all of it: nothing irreversible. No deleted repos, branches or history. No force push, in any spelling, ever. Archive instead of delete. A maintainer merges ion&rsquo;s pull requests. Ion never merges its own.</p>
+  <div class="scrollx"><table class="tb">
+    <thead><tr><th>Guard</th><th>Default</th><th>What happens when it trips</th></tr></thead>
+    <tbody>
+      <tr><td>Share of org touched</td><td class="num">over 25%</td><td>Run aborts before writing. Digest and status record it.</td></tr>
+      <tr><td>Archives in one run</td><td class="num">over 2</td><td>Run aborts. Archiving still needs its own approval each time.</td></tr>
+      <tr><td>Total writes in one run</td><td class="num">over 150</td><td>Run aborts. Per-type caps usually defer work long before this.</td></tr>
+      <tr><td>Weaker branch protection</td><td class="num">any</td><td>Run aborts. Ion may strengthen protection. It may not lower it.</td></tr>
+      <tr><td>Kill switch</td><td class="num">ion pause</td><td>All executors and tracker writes stop. Reads continue.</td></tr>
+    </tbody>
+  </table></div>
+  <p class="cap">Defaults from the shipped guard config. Every value is yours to change in <code>ion.yml</code>, and <code>ion plan-config</code> previews what a change would do before you adopt it.</p>
+</section>
+<div class="link" aria-hidden="true"><i></i></div>
+
+<!-- 05 PROPOSALS -->
+<section class="panel reveal" id="proposals" data-idx="05" data-short="What ion proposes">
+  <div class="plabel"><b><span class="k">05</span> // What ion proposes</b><span class="tags"><span class="tag t-built">9 kinds</span><span class="tag t-spec">SPEC §2.2–2.3</span></span></div>
+  <h2>Nine kinds of proposal, each with its evidence attached.</h2>
+  <p>A candidate must persist across repeated snapshots before it becomes a proposal, so one odd day never files an issue. Structural kinds carry ordered steps: a later step refuses to run until the pull request before it has landed.</p>
+  <div class="scrollx"><table class="tb">
+    <thead><tr><th>Kind</th><th>What it means</th><th>Typical evidence</th></tr></thead>
+    <tbody>
+      <tr><td><code>merge</code></td><td>Fold repo A into repo B, full history kept, then a pointer PR in A</td><td>Coupling score and its five signals</td></tr>
+      <tr><td><code>split</code></td><td>Move a directory out into a new repo, history kept, removal PR after proof</td><td>Separable clusters inside one repo</td></tr>
+      <tr><td><code>move_code</code></td><td>Move code between existing repos, with the same two exact checks</td><td>Imports and co-change across the pair</td></tr>
+      <tr><td><code>archive</code></td><td>Put a finished repo away. Always its own approval</td><td>Staged lifecycle: active, stale, archive-proposed</td></tr>
+      <tr><td><code>rename</code> · <code>new_repo</code></td><td>Name and homekeeping for splits and merges</td><td>The parent proposal that needs them</td></tr>
+      <tr><td><code>policy_fix</code></td><td>Bring a repo back to policy: protection, alerts, scanning, required files</td><td>Drift from <code>ion.yml</code>, with an action level per class</td></tr>
+      <tr><td><code>health_fix</code></td><td>Missing readme, licence, CI or description</td><td>Per-repo health checks</td></tr>
+      <tr><td><code>autofix</code></td><td>One small change across many repos, as a single proposal of exact diffs</td><td><code>ion autofix</code> preview diffs over the mirrors</td></tr>
+    </tbody>
+  </table></div>
+  <h3>How &ldquo;these two belong together&rdquo; is scored</h3>
+  <p>Five signals per repo pair, combined so that one saturated signal alone just reaches the merge threshold of 0.6. Weak signals need company. The name-prefix signal is deliberately tiny: repos called <code>protean-*</code> share a naming scheme, not a life, and ion&rsquo;s first live run proved the point with 265 pairs that were mostly that.</p>
+  <div class="scrollx"><table class="tb">
+    <thead><tr><th>Signal</th><th>Weight</th><th>Hygiene</th></tr></thead>
+    <tbody>
+      <tr><td>Cross-references</td><td class="num">0.6</td><td>Manifests, imports, git URLs, readme links</td></tr>
+      <tr><td>Duplicated code</td><td class="num">0.6</td><td>Identical files plus near-duplicates. Vendored, lock and generated files ignored</td></tr>
+      <tr><td>Co-change</td><td class="num">0.6</td><td>Shared commit days over average commit days. Huge commits, bots and ion itself excluded. Half-weighted unless a content signal agrees</td></tr>
+      <tr><td>Shared dependencies</td><td class="num">0.3</td><td>Overlap of the two dependency sets</td></tr>
+      <tr><td>Shared name prefix</td><td class="num">0.05</td><td>Counts only when another signal is already at least 0.15</td></tr>
+    </tbody>
+  </table></div>
+  <p>Tag rules add boundaries: mark repos with topics such as <code>scope:app</code>, say which scopes may depend on which, and cross-scope merges are blocked or flagged before they are ever proposed. Two fleet tools ride on the same mirrors: <code>ion grep</code> searches every repo with no API calls, and <code>ion autofix</code> previews a change everywhere, then files one proposal for exactly those diffs.</p>
+</section>
+<div class="link" aria-hidden="true"><i></i></div>
+
+<!-- 06 STATUS -->
+<section class="panel reveal" id="status" data-idx="06" data-short="Status">
+  <div class="plabel"><b><span class="k">06</span> // Status</b><span class="tags"><span class="tag t-spec">SPEC §7–8</span></span></div>
+  <h2>What is built, what is not, and what will never be.</h2>
+  <div class="status">
+    <div class="st k"><h3>Built and tested</h3><ul>
+      <li>The full six-stage pipeline, offline tests end to end: merge, split, move and autofix run against local bare repos</li>
+      <li>Plan-hash approval on all three channels, with expiry and quorum</li>
+      <li>Typed writes with caps, circuit breaker, kill switch, resumable ledger</li>
+      <li>Exact move verification and provenance trailers</li>
+      <li>Org health dashboard, digests, fleet grep and autofix, config preview</li>
+      <li>Phase 1 deployment: a daily scheduled run on a Mac, executors in dry-run until you add <code>--apply</code></li>
+    </ul></div>
+    <div class="st o"><h3>Not yet built</h3><ul>
+      <li>Splits that prefer cuts along tag boundaries. Tags are per-repo today, so there is nothing finer to cut along</li>
+      <li>Importing several branches or tags on merge. Default branch only</li>
+      <li>Pinning the dashboard issue automatically. Pin it once by hand</li>
+      <li>Later survey ideas: path-level owners, scorecard input, conditional rules</li>
+      <li>Phase 2: a GitHub App identity on a hosted schedule. Config changes only, when uptime justifies it</li>
+    </ul></div>
+    <div class="st n"><h3>Out of scope, by design</h3><ul>
+      <li>Deleting repos, branches or history. Force pushes</li>
+      <li>Merging its own pull requests</li>
+      <li>Reviewing other people&rsquo;s pull requests, or writing feature code</li>
+      <li>Team and membership management</li>
+      <li>Webhooks or a live server. One scheduled pass a day is the design</li>
+    </ul></div>
+  </div>
+  <p class="note">Run the checks yourself: <code>uv run pytest -q</code> and <code>uv run python scripts/check_licenses.py</code>. The licence guard fails the build if any dependency falls outside MIT, BSD, Apache-2.0, ISC, PSF or MPL-2.0. No GPL dependency, ever.</p>
+</section>
+<div class="link" aria-hidden="true"><i></i></div>
+
+<!-- 07 NAME -->
+<section class="panel reveal" id="name" data-idx="07" data-short="Why ion">
+  <div class="plabel"><b><span class="k">07</span> // Why ion</b><span class="tags"><span class="tag"> ἰόν · going</span></span></div>
+  <h2>An ion is something that goes, along a path, carrying charge.</h2>
+  <p>Michael Faraday coined the word in 1834, from the Greek <em>ἰόν</em>, &ldquo;going&rdquo;, for charged particles that move through a solution toward an electrode. Four threads tie the name to the work:</p>
+  <div class="cards">
+    <article class="card"><p class="ck">Going</p><h3>It moves through every repo</h3><p>Ion travels the whole org on each run and carries a signal from where the evidence sits to where the decision happens.</p></article>
+    <article class="card"><p class="ck">Lattices</p><h3>It holds the structure</h3><p>In a crystal, ions sit on the points of a lattice and the pull between them holds it together. Ion watches how repos relate and keeps that structure sound. The lattice is also home ground: it runs in the same family as the <a href="https://aska-digital.github.io/incentre-lattice/">incentre lattice</a> and <a href="https://github.com/aska-digital/exo">Exo</a>.</p></article>
+    <article class="card"><p class="ck">Charge</p><h3>It acts only along approved paths</h3><p>Charge does work only along a path. Ion&rsquo;s paths are the three approval channels. Off those paths, no current flows and nothing changes.</p></article>
+    <article class="card hum"><p class="ck">The amp team</p><h3>Current is ions in motion</h3><p>Current is measured in amperes, and ion is owned and reviewed by the amp team, whose craft is reviewing. That fits the design: ion&rsquo;s centre of gravity is a review gate. In the live Aska Digital deployment, proposals are prepared for a reviewer&rsquo;s yes or no, and the reviewer&rsquo;s word is what turns a plan into current.</p></article>
+  </div>
+</section>
+<div class="link" aria-hidden="true"><i></i></div>
+
+<!-- 08 CREDITS + DOORS -->
+<section class="panel reveal" id="credits" data-idx="08" data-short="Prior art and doors">
+  <div class="plabel"><b><span class="k">08</span> // Prior art, and where to go next</b><span class="tags"><span class="tag t-spec">Ideas credited, code original</span></span></div>
+  <h2>Standing on published designs. Copying none of them.</h2>
+  <p>Ion&rsquo;s mechanisms come from other projects&rsquo; documented behaviour, re-implemented in its own words. Nothing is vendored. The typed-write broker follows GitHub Agentic Workflows&rsquo; safe outputs and actions/stale&rsquo;s per-run caps. The breaker follows Peribolos. Plan-bound approval follows policy-bot. The dashboard follows Renovate&rsquo;s layout. Coupling follows Adam Tornhill&rsquo;s change-coupling method. The <a href="https://github.com/aska-digital/ion#prior-art-and-credits">full credit table</a> names all twenty-five, each with its licence, checked on 2026-10-13.</p>
+  <div class="doors">
+    <a class="door" href="guide.html"><span class="n">GUIDE</span><span class="t">Run ion on your org →</span><span class="d">Install, first dry run, the config keys that matter, the approval walk-through, and every command.</span></a>
+    <a class="door" href="https://github.com/aska-digital/ion"><span class="n">REPOSITORY</span><span class="t">aska-digital/ion →</span><span class="d">Apache-2.0 source, tests, issues. Contributions welcome: read CONTRIBUTING.md first, bring tests, add no GPL dependency.</span></a>
+    <a class="door" href="https://github.com/aska-digital/ion/blob/main/SPEC.md"><span class="n">SPEC</span><span class="t">The full design (SPEC.md) →</span><span class="d">Ten principles, every stage in detail, the config surface, what is out of scope, and how v2 maps to the research survey.</span></a>
+    <a class="door" href="https://github.com/aska-digital/ion/blob/main/README.md"><span class="n">README</span><span class="t">The long README →</span><span class="d">Features, architecture, notifiers, deployment, and the complete prior-art table with licences.</span></a>
+  </div>
+  <p class="note">Security problems go through private reporting, described in <a href="https://github.com/aska-digital/ion/blob/main/SECURITY.md">SECURITY.md</a>. Be kind, per the <a href="https://github.com/aska-digital/ion/blob/main/CODE_OF_CONDUCT.md">code of conduct</a>.</p>
+</section>
+
+</main>
+</div>
+
+<footer class="foot"><div class="in">
+  <div>
+    <p><strong style="color:var(--ink2)">Ion</strong> · the Aska Digital org steward. Copyright 2026 ASKA Business Solutions and the Ion contributors. Apache-2.0. This page is an infographic abstract: the repository and SPEC.md are the record.</p>
+    <p id="buildstamp" style="margin-top:8px"></p>
+  </div>
+  <nav aria-label="Footer">
+    <a href="index.html">Abstract</a>
+    <a href="guide.html">Guide</a>
+    <a href="https://github.com/aska-digital/ion">GitHub</a>
+    <a href="https://github.com/aska-digital/ion/blob/main/LICENSE">Licence</a>
+    <a href="#abstract">Back to top</a>
+  </nav>
+</div></footer>
+
+<script src="shell.js" defer></script>
+<script src="sim.js" defer></script>
+</body>
+</html>

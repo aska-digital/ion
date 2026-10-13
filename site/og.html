@@ -1,0 +1,57 @@
+<!doctype html>
+<!-- Source of the share image og.png (1200 x 630). Not deployed: build.sh skips this file.
+     To regenerate: serve site/ locally, then
+     "Google Chrome" --headless=new --hide-scrollbars --window-size=1200,630 \
+       --screenshot=site/og.png http://localhost:PORT/og.html -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Share image</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+<style>
+  html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
+  body { background: radial-gradient(760px 520px at 78% 60%, rgba(38, 84, 110, 0.4), transparent 70%), linear-gradient(180deg, #080d14 0%, #06090d 70%); }
+  #art { position: absolute; right: 0; top: 0; width: 560px; height: 630px; }
+  .card { position: absolute; left: 64px; top: 62px; width: 640px; }
+  .eye { display: flex; align-items: center; gap: 12px; font: 15px/1 var(--mono); letter-spacing: 0.22em; color: var(--sig); text-transform: uppercase; }
+  h1 { font: 500 54px/1.08 var(--serif); color: var(--ink); margin: 20px 0 18px; letter-spacing: -0.012em; }
+  h1 em { font-style: italic; color: var(--sig-hi); }
+  .sub { font: 19px/1.5 var(--serif); color: var(--ink2); margin: 0 0 26px; max-width: 30em; }
+  .sub b { color: var(--hum-hi); font-weight: 500; }
+  .pipe { display: flex; gap: 7px; }
+  .pipe span { font: 12.5px/1 var(--mono); letter-spacing: 0.08em; color: var(--ink2); border: 1px solid var(--line2); padding: 9px 11px; border-radius: 3px; background: rgba(10, 16, 24, 0.7); }
+  .pipe span.g { color: var(--hum-hi); border-color: rgba(232, 163, 61, 0.7); background: var(--hum-lo); }
+  .foot { position: absolute; left: 64px; bottom: 48px; font: 14px/1 var(--mono); letter-spacing: 0.1em; color: var(--dim); }
+  .foot b { color: var(--ink2); font-weight: 400; }
+</style>
+</head>
+<body>
+<svg id="art" viewBox="0 0 560 630" aria-hidden="true">
+  <g stroke="#5fd4e6" stroke-width="1.4" opacity="0.35">
+    <path d="M90 90h380M90 250h380M90 410h380M90 570h380M90 90v480M216 90v480M343 90v480M470 90v480" fill="none"/>
+    <path d="M90 90l126 160M216 90l127 160M343 90l127 160M90 250l126 160M343 250l127 160M90 410l126 160M216 410l127 160" fill="none" opacity="0.5"/>
+  </g>
+  <g fill="#94b2cd">
+    <circle cx="90" cy="90" r="5"/><circle cx="216" cy="90" r="5"/><circle cx="343" cy="90" r="5"/><circle cx="470" cy="90" r="5"/>
+    <circle cx="90" cy="250" r="5"/><circle cx="216" cy="250" r="5"/><circle cx="343" cy="250" r="5"/><circle cx="470" cy="250" r="5"/>
+    <circle cx="90" cy="410" r="5"/><circle cx="216" cy="410" r="5"/><circle cx="343" cy="410" r="5"/><circle cx="470" cy="410" r="5"/>
+    <circle cx="90" cy="570" r="5"/><circle cx="216" cy="570" r="5"/><circle cx="343" cy="570" r="5"/><circle cx="470" cy="570" r="5"/>
+  </g>
+  <circle cx="280" cy="330" r="34" fill="#e8a33d"/>
+  <path d="M280 312v36M262 330h36" stroke="#06090d" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="153" cy="170" r="7" fill="#5fd4e6"/>
+  <circle cx="406" cy="490" r="7" fill="#5fd4e6"/>
+</svg>
+<div class="card">
+  <div class="eye">
+    <svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true"><g stroke="#5fd4e6" stroke-width="2.4"><path d="M14 14h36M14 50h36M14 14v36M50 14v36M14 14l18 18M50 14L32 32M14 50l18-18M50 50L32 32" opacity=".55"/></g><g fill="#5fd4e6"><circle cx="14" cy="14" r="4.2"/><circle cx="50" cy="14" r="4.2"/><circle cx="14" cy="50" r="4.2"/><circle cx="50" cy="50" r="4.2"/></g><circle cx="32" cy="32" r="7" fill="#e8a33d"/><path d="M32 27.6v8.8M27.6 32h8.8" stroke="#06090d" stroke-width="2.6" stroke-linecap="round"/></svg>
+    Ion · org steward bot
+  </div>
+  <h1>Ion reads the whole org. It changes <em>nothing without your yes.</em></h1>
+  <p class="sub">Merges, splits and policy fixes, proposed as exact hashed plans. <b>A maintainer approves the plan.</b> Only then does ion write.</p>
+  <div class="pipe"><span>collect</span><span>analyze</span><span>propose</span><span class="g">approve · gate</span><span>execute</span><span>report</span></div>
+</div>
+<div class="foot"><b>github.com/aska-digital/ion</b> · Apache-2.0 · Aska Digital</div>
+</body>
+</html>

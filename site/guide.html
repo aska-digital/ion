@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Run ion on your org | Ion guide</title>
+<meta name="description" content="Install ion, run it in dry-run against your GitHub organisation, read its first proposals, approve one, and schedule it. The config keys that matter and every command.">
+<meta name="theme-color" content="#06090d">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="canonical" href="https://aska-digital.github.io/ion/guide.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Ion">
+<meta property="og:title" content="Run ion on your org">
+<meta property="og:description" content="Install, first dry run, the config keys that matter, the approval walk-through, and every command.">
+<meta property="og:url" content="https://aska-digital.github.io/ion/guide.html">
+<meta property="og:image" content="https://aska-digital.github.io/ion/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A lattice of repository nodes with one amber ion at the centre, beside the words: Ion reads the whole org. It changes nothing without your yes.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Run ion on your org">
+<meta name="twitter:description" content="Install, first dry run, config keys, approval walk-through, every command.">
+<meta name="twitter:image" content="https://aska-digital.github.io/ion/og.png">
+<meta name="twitter:image:alt" content="A lattice of repository nodes with one amber ion at the centre, beside the words: Ion reads the whole org. It changes nothing without your yes.">
+<script>document.documentElement.className += ' js';</script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="lattice" aria-hidden="true"></canvas>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><div class="bar">
+  <a class="brand" href="index.html" aria-label="Ion, home">
+    <svg width="26" height="26" viewBox="0 0 64 64" aria-hidden="true"><g stroke="#5fd4e6" stroke-width="2.4"><path d="M14 14h36M14 50h36M14 14v36M50 14v36M14 14l18 18M50 14L32 32M14 50l18-18M50 50L32 32" opacity=".55"/></g><g fill="#5fd4e6"><circle cx="14" cy="14" r="4.2"/><circle cx="50" cy="14" r="4.2"/><circle cx="14" cy="50" r="4.2"/><circle cx="50" cy="50" r="4.2"/></g><circle cx="32" cy="32" r="7" fill="#e8a33d"/><path d="M32 27.6v8.8M27.6 32h8.8" stroke="#06090d" stroke-width="2.6" stroke-linecap="round"/></svg>
+    <span>Ion</span><small>Guide</small>
+  </a>
+  <nav aria-label="Main"><ul>
+    <li><a href="index.html">Abstract</a></li>
+    <li><a href="guide.html" aria-current="page">Guide</a></li>
+    <li><a href="https://github.com/aska-digital/ion/blob/main/SPEC.md">Spec</a></li>
+    <li><a href="https://github.com/aska-digital/ion">GitHub</a></li>
+  </ul></nav>
+</div></header>
+
+<div class="layout">
+<aside class="index" data-title="Guide" data-page="guide" aria-label="Section index"></aside>
+<main id="main" tabindex="-1">
+
+<!-- G0 INSTALL -->
+<section class="panel hero" id="install" data-idx="G0" data-short="Install and first run">
+  <div class="plabel"><b><span class="k">G0</span> // Install and first run</b><span class="tags"><span class="tag t-built">Dry run by default</span></span></div>
+  <p class="eyebrow">Guide</p>
+  <h1>Run ion on your org, <em>writing nothing.</em></h1>
+  <p class="abstract">Ion&rsquo;s executors dry-run unless you pass <code>--apply</code>. Your first day with it should end with a dashboard full of proposals and an org that looks exactly as it did that morning. Approve later, on purpose, one plan at a time.</p>
+  <p>You need Python 3.12 or newer, <a href="https://docs.astral.sh/uv/">uv</a>, git with <code>git subtree</code>, the GitHub CLI <code>gh</code> logged in to an account that can see the org, and <code>git-filter-repo</code> if you want splits.</p>
+  <pre class="code">git clone https://github.com/aska-digital/ion.git &amp;&amp; cd ion
+uv sync                       <span class="cm"># add --extra graph for Louvain clustering</span>
+cp ion.example.yml ion.yml    <span class="cm"># then edit: org, maintainers, tracker_repo</span>
+uv run ion --config ion.yml doctor</pre>
+  <p><code>doctor</code> checks the GitHub login, git and subtree, filter-repo, the language-model backend, the bus if you use one, and the config itself. Fix what it names. Then take the first full pass. It reads, measures, files proposals in the tracker, and writes nothing to any other repo:</p>
+  <pre class="code">uv run ion --config ion.yml run          <span class="cm"># the whole pipeline, executors dry-run</span>
+uv run ion --config ion.yml status       <span class="cm"># what is waiting, held, done; any breaker trip</span>
+uv run ion --config ion.yml dashboard    <span class="cm"># the Org health issue, or --print to just read it</span></pre>
+  <p>State lives in <code>~/.ion/state.db</code> and repo mirrors in <code>~/.ion/cache</code>. Set <code>ION_HOME</code> to move both, and <code>ION_CONFIG</code> to set a default config path. Your real config, with maintainer names and local paths, belongs outside any public repo: <code>~/.ion/ion.yml</code> is a good home.</p>
+  <p class="note"><strong>Keep the tracker repo private.</strong> Proposal bodies name your private repos and quote their metadata. The default tracker name is <code>ion-tracker</code>. Create it as a private repo before the first run.</p>
+</section>
+<div class="link" aria-hidden="true"><i></i></div>
+
+<!-- G1 CONFIG -->
+<section class="panel reveal" id="config" data-idx="G1" data-short="Config that matters">
+  <div class="plabel"><b><span class="k">G1</span> // The config keys that matter</b><span class="tags"><span class="tag t-spec">ion.example.yml is the full list</span></span></div>
+  <h2>Start strict. Loosen one class at a time.</h2>
+  <p>Every repo can override the org config in its own <code>.github/ion.yml</code>: who maintains it, whether ion governs it at all, and its policy action levels. Two settings shape your first month more than any others:</p>
+  <ul class="plain">
+    <li><code>policy_strategy: opt-out</code> (the default) governs every repo unless that repo says <code>enabled: false</code>. Choose <code>opt-in</code> to govern only repos that ask.</li>
+    <li><code>policy_actions</code> sets, per policy class, what a drift finding does: <code>log</code> records it, <code>issue</code> proposes it and waits for approval, <code>fix</code> applies it unattended. Start everything at <code>issue</code>. Promote a class to <code>fix</code> only after its proposals have bored you for weeks. Structural kinds can never be <code>fix</code>.</li>
+  </ul>
+  <div class="scrollx"><table class="tb">
+    <thead><tr><th>Key</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><code>org</code></td><td>The organisation to steward</td></tr>
+      <tr><td><code>maintainers</code></td><td>GitHub logins whose approval counts. Per-repo lists refine this</td></tr>
+      <tr><td><code>tracker_repo</code></td><td>Private repo where proposals are filed as issues</td></tr>
+      <tr><td><code>approval_sources</code></td><td>Any of <code>github_label</code>, <code>divan_bus</code>, <code>dashboard</code></td></tr>
+      <tr><td><code>notifiers</code></td><td><code>stdout</code>, <code>file</code>, <code>divan_bus</code>, <code>github_issue</code>, <code>webhook</code>. Failed deliveries queue and retry</td></tr>
+      <tr><td><code>llm.backend</code></td><td><code>none</code> (default), <code>claude_cli</code> or <code>anthropic_api</code>. Words only: the model cannot add repos or raise scores</td></tr>
+      <tr><td><code>guards</code></td><td>The circuit breaker: <code>max_repo_fraction</code>, <code>max_archives</code>, <code>max_writes</code>, <code>forbid_protection_lowering</code></td></tr>
+      <tr><td><code>writes.caps</code></td><td>Per-run cap by write type, for example <code>{open_pr: 5, archive_repo: 1}</code></td></tr>
+      <tr><td><code>quorum</code> · <code>approval_ttl_days</code></td><td>Approvers required per proposal, and when approvals expire (14 days)</td></tr>
+      <tr><td><code>lifecycle</code></td><td><code>dormant_days</code>, plus repos or a topic that freeze the stale clock</td></tr>
+      <tr><td><code>boundaries</code></td><td>Tag rules and scope prefix. Cross-scope merges blocked by default</td></tr>
+      <tr><td><code>budget.graphql_points_per_run</code></td><td>Collection stops cleanly at the budget (500) and resumes next run</td></tr>
+    </tbody>
+  </table></div>
+  <p>Before adopting any change, preview it. <code>ion plan-config NEW.yml</code> runs both configs over the same snapshot and reports candidates gained and lost, drift changes, repos that would opt out, and open proposals that would be re-planned. It writes nothing.</p>
+  <pre class="code">uv run ion --config ion.yml plan-config candidate.yml
+uv run ion --config ion.yml plan-config --set thresholds.merge_coupling=0.7</pre>
+</section>
+<div class="link" aria-hidden="true"><i></i></div>
+
+<!-- G2 APPROVE -->
+<section class="panel reveal" id="approve" data-idx="G2" data-short="Approve your first plan">
+  <div class="plabel"><b><span class="k">G2</span> // Approve your first plan</b><span class="tags"><span class="tag t-hum">The reviewer&rsquo;s ten minutes</span></span></div>
+  <h2>Read the case. Check the fingerprint. Decide.</h2>
+  <ol class="steps">
+    <li><strong>Open the proposal issue.</strong> It is titled like <code>[P-0007] merge a into b</code> in the tracker repo, labelled with its kind and state. Ion edits this one issue in place for the proposal&rsquo;s whole life.</li>
+    <li><strong>Read the evidence, then the steps.</strong> The body lists the signals and scores, the ordered changesets with dependencies, the exact commands the executor will run, the rollback, and the blast radius. If any command surprises you, hold the proposal and ask why.</li>
+    <li><strong>Note the fingerprint.</strong> The <code>plan-sha256: …</code> line is the plan you are about to endorse. Your approval will count for that hash and no other.</li>
+    <li><strong>Decide on any channel.</strong> Add <code>ion:approved</code>, <code>ion:hold</code> or <code>ion:rejected</code>; or send <code>ion approve P-0007</code> over the bus; or tick the box on the Org health issue. You must be a maintainer of every repo the plan touches, or your label is removed and logged as ignored.</li>
+    <li><strong>Let the next run execute, or run it yourself.</strong> <code>ion execute --apply P-0007</code> re-derives your approval from the record, checks caps and the breaker, then works through the steps in order. A dependent step waits until the pull request before it has landed.</li>
+    <li><strong>Merge the pull requests yourself.</strong> Ion opens them on <code>ion/*</code> branches and proves the move before asking. It never merges its own work. If the plan ends with archiving the source repo, that arrives as a separate proposal needing a separate yes.</li>
+  </ol>
+  <pre class="code"><span class="cm"># What did ion do, and why does it believe it may?</span>
+uv run ion --config ion.yml explain P-0007   <span class="cm"># ledger, approvals, steps, states</span>
+uv run ion --config ion.yml status           <span class="cm"># queue, holds, last breaker trip</span></pre>
+  <p>If new evidence changes a plan after you approved it, expect ion to ask again. The label comes off by itself. That is the system working, not a fault to work around.</p>
+</section>
+<div class="link" aria-hidden="true"><i></i></div>
+
+<!-- G3 COMMANDS -->
+<section class="panel reveal" id="commands" data-idx="G3" data-short="Every command">
+  <div class="plabel"><b><span class="k">G3</span> // Every command</b><span class="tags"><span class="tag t-spec">SPEC §4</span></span></div>
+  <h2>One pipeline, plus three tools you will use weekly.</h2>
+  <pre class="code">ion collect | analyze | propose [--dry-run] | sync-approvals | execute [--apply] [P-0007]
+ion report | run [--apply] | status | explain P-0007 | pause | resume | doctor
+ion grep PATTERN [--path GLOB] [--repo GLOB] [-i] [-F]
+ion autofix [NAME] [--repo GLOB] [--propose]
+ion plan-config NEW.yml            <span class="cm">(or --set key=value)</span>
+ion dashboard [--print]</pre>
+  <div class="cards">
+    <article class="card"><p class="ck">ion grep</p><h3>Search the whole org, free</h3><p>Runs <code>git grep</code> over the default branch of every local mirror. No API calls, no writes. The fastest way to answer &ldquo;where else does this pattern live?&rdquo; before you propose changing it.</p></article>
+    <article class="card"><p class="ck">ion autofix</p><h3>One small change, everywhere</h3><p>With no flags it prints the diffs and writes nothing. With <code>--propose</code> it files one proposal whose fingerprint covers exactly those diffs. Pull requests exist only after approval, each recomputed and compared with what was approved. Built in: a readme skeleton and a Dependabot config generator. Write your own by subclassing <code>ion.fleet.Autofixer</code>.</p></article>
+    <article class="card"><p class="ck">ion plan-config</p><h3>Try a rule before you live under it</h3><p>Compares two configs over the same snapshot: candidates added, removed, rescored or blocked, drift and lifecycle changes, proposals that would re-plan. Tune thresholds with evidence instead of vibes.</p></article>
+    <article class="card"><p class="ck">ion pause</p><h3>The kill switch</h3><p>Creates <code>~/.ion/PAUSED</code>. Every executor and tracker write stops until <code>ion resume</code>. Reads, grep and reports keep working, so you can investigate with the machine&rsquo;s hands visibly off the controls.</p></article>
+  </div>
+</section>
+<div class="link" aria-hidden="true"><i></i></div>
+
+<!-- G4 DEPLOY -->
+<section class="panel reveal" id="deploy" data-idx="G4" data-short="Scheduling and phase 2">
+  <div class="plabel"><b><span class="k">G4</span> // Scheduling it, then phase 2</b><span class="tags"><span class="tag t-built">Phase 1</span><span class="tag t-plan">Phase 2 planned</span></span></div>
+  <h2>Daily is enough. Dry-run until it has earned more.</h2>
+  <p>Phase 1 is a LaunchAgent on a Mac. The installer renders the job file and deliberately does not load it, so you read it first:</p>
+  <pre class="code">deploy/install.sh ~/.ion/ion.yml
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.aska.ion.plist</pre>
+  <p>It runs <code>ion run</code> daily at 06:30 and logs to <code>~/.ion/ion.log</code>. The shipped job keeps executors in dry-run. Add <code>--apply</code> only after a few weeks of proposals you would have approved anyway, and keep the source tree outside <code>~/Documents</code> to avoid macOS privacy prompts. Any scheduler that can run one command a day works as well.</p>
+  <p>Phase 2, when cost or uptime justify it, swaps the laptop for a GitHub App identity and a scheduled GitHub Action with <code>llm.backend: anthropic_api</code>. Only config changes. The pipeline, gates and guards do not move.</p>
+  <h3>A sane first month</h3>
+  <ol class="steps">
+    <li>Week 1: dry runs only. Read every proposal. Tune thresholds with <code>plan-config</code> until the noise is gone.</li>
+    <li>Week 2: approve two or three small health or policy proposals by hand. Watch <code>explain</code> after each.</li>
+    <li>Week 3: approve one small merge or autofix. Check the provenance trailers and the tree proof in the pull request.</li>
+    <li>Week 4: schedule the daily run. Promote at most one policy class to <code>fix</code>. Leave archives manual forever, because ion will.</li>
+  </ol>
+  <div class="doors">
+    <a class="door" href="index.html"><span class="n">ABSTRACT</span><span class="t">Why ion is shaped this way →</span><span class="d">The problem, the working model of the gate, the safety layers, and the honest status.</span></a>
+    <a class="door" href="https://github.com/aska-digital/ion/blob/main/SPEC.md"><span class="n">SPEC</span><span class="t">The full design →</span><span class="d">Every stage, every guard, the complete config surface, and what is deliberately out of scope.</span></a>
+  </div>
+</section>
+
+</main>
+</div>
+
+<footer class="foot"><div class="in">
+  <div>
+    <p><strong style="color:var(--ink2)">Ion</strong> · the Aska Digital org steward. Copyright 2026 ASKA Business Solutions and the Ion contributors. Apache-2.0. Commands and defaults on this page follow the repository; if they ever disagree, the repository wins.</p>
+    <p id="buildstamp" style="margin-top:8px"></p>
+  </div>
+  <nav aria-label="Footer">
+    <a href="index.html">Abstract</a>
+    <a href="guide.html">Guide</a>
+    <a href="https://github.com/aska-digital/ion">GitHub</a>
+    <a href="https://github.com/aska-digital/ion/blob/main/LICENSE">Licence</a>
+    <a href="#install">Back to top</a>
+  </nav>
+</div></footer>
+
+<script src="shell.js" defer></script>
+</body>
+</html>
