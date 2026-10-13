@@ -83,7 +83,7 @@ Keys worth knowing:
 | `budget.graphql_points_per_run` | collection stops cleanly when reached (default 500) |
 | `git_identity` | author of commits Mimar makes. No AI trailer unless `ai_attribution: true`. |
 
-Mimar's own org config is in `config/aska-digital.yml`.
+Deployment configs (with your org's maintainers, bus addresses and paths) belong outside this repo, for example in `~/.mimar/mimar.yml` or in your private tracker repo.
 
 ### Notifiers
 
@@ -171,7 +171,7 @@ uv run python scripts/check_licenses.py     # the licence allowlist; also run by
 Phase 1 is a LaunchAgent on a Mac. `deploy/install.sh` renders `deploy/ai.aska.mimar.plist` into `~/Library/LaunchAgents` and **does not load it**:
 
 ```sh
-deploy/install.sh config/aska-digital.yml
+deploy/install.sh ~/.mimar/mimar.yml
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.aska.mimar.plist
 ```
 

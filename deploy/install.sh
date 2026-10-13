@@ -3,7 +3,7 @@
 #   deploy/install.sh [path/to/config.yml]
 set -euo pipefail
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CONFIG="${1:-$SRC_DIR/config/aska-digital.yml}"
+CONFIG="${1:-$HOME/.mimar/mimar.yml}"
 UV="${UV:-$(command -v uv || echo "$HOME/.local/bin/uv")}"
 LABEL="ai.aska.mimar"
 DEST="$HOME/Library/LaunchAgents/$LABEL.plist"
