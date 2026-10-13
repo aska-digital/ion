@@ -47,7 +47,7 @@ def doctor(ctx, cfg_error: str | None = None) -> list[dict]:
             try:
                 rc, o, e = ctx.bus_runner([py, os.path.expanduser(client), "head"],
                                           {"DIVAN_URL": cfg["bus"]["url"], "DIVAN_SEAT": cfg["bus"]["seat"]}, None)
-                out.append(_ok("bus", rc == 0, "relay reachable" if rc == 0 else (e.strip()[:120] or "unreachable")))
+                out.append(_ok("bus", rc == 0, "relay reachable" if rc == 0 else ((e.strip().splitlines() or ["unreachable"])[-1][:120])))
             except Exception as ex:  # noqa: BLE001
                 out.append(_ok("bus", False, str(ex)[:120]))
     else:

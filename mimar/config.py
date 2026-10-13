@@ -23,7 +23,7 @@ DEFAULTS: dict = {
     "llm": {"backend": "none", "model_default": "haiku", "model_structural": "sonnet", "max_calls_per_run": 20,
             "timeout_s": 180, "api_models": {"haiku": "claude-haiku-4-5", "sonnet": "claude-sonnet-4-5"}},
     "budget": {"graphql_points_per_run": 500},
-    "collect": {"commits": 60, "page_size": 25},
+    "collect": {"commits": 30, "page_size": 10},
     "policy": {
         "default_branch": "main",
         "branch_protection": {"require_pr": True, "required_approvals": 0, "allow_force_pushes": False,

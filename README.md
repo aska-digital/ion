@@ -122,4 +122,4 @@ Phase 2 (when cost or uptime justify it): a GitHub App identity and a GitHub Act
 
 ## Licence
 
-Apache-2.0, see `LICENSE` and `NOTICE`. Dependencies are listed in `THIRD_PARTY.md`.
+Copyright 2026 ASKA Business Solutions and the Mimar contributors. Apache-2.0, see `LICENSE` and `NOTICE`. Dependencies are listed in `THIRD_PARTY.md`.
