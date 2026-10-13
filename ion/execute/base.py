@@ -157,7 +157,38 @@ class Executor:
         from .provenance import verify_filtered
         src = self.ctx.work_dir(p["id"]) / "verify-source"
         self.clone(self.ctx.remote_url(source), src)
-        return verify_filtered(filtered_dir, src, f"origin/{base}", dirs)
+        out = verify_filtered(filtered_dir, src, f"origin/{base}", dirs)
+        # the exact source commit that was checked: the removal step refuses if `dirs` changed after it
+        return {**out, "source_commit": self.g(["rev-parse", f"origin/{base}"], cwd=src).stdout.strip()}
+
+    def removal_base(self, p: dict, verify_key: str, cwd, url: str, base: str, dirs: list[str], moved_to: str) -> str:
+        """Fetch the source before cutting its removal branch from `origin/<base>`. Raise SafetyError if `dirs` changed
+        after verification: `moved_to` lacks that work, and the removal would delete it. Returns a note for the ledger.
+        Proposals verified before the commit was recorded fall back to comparing the verified tree with the tip's."""
+        self.g([*self.auth(url), "fetch", "-q", "origin"], cwd=cwd)
+        tip, v = f"origin/{base}", self.ledger_json(p["id"], verify_key)
+        tipsha = self.g(["rev-parse", tip], cwd=cwd).stdout.strip()
+        if v.get("source_commit"):
+            vc = v["source_commit"]
+            if self.g(["merge-base", "--is-ancestor", vc, tip], cwd=cwd, check=False).returncode:
+                why = f"the verified commit {vc[:10]} is not in {tip} any more"
+            else:
+                late = self.g(["rev-list", f"{vc}..{tip}", "--", *dirs], cwd=cwd).stdout.split()
+                why = late and f"{len(late)} commit(s) since the verified {vc[:10]}, e.g. {late[0][:10]}"
+            note = f"no changes under {', '.join(dirs)} between verified {vc[:10]} and {tip} {tipsha[:10]}"
+        else:
+            if len(dirs) == 1:
+                now = self.g(["rev-parse", "-q", "--verify", f"{tip}:{dirs[0]}"], cwd=cwd, check=False).stdout.strip()
+            else:
+                ls = self.g(["ls-tree", tip, "--", *dirs], cwd=cwd).stdout
+                now = self.g(["mktree"], cwd=cwd, input=ls).stdout.strip()
+            why = now != v.get("tree") and f"their tree at {tip} {tipsha[:10]} differs from the verified tree"
+            note = f"no verified commit recorded (older run); {tip} {tipsha[:10]} tree at {', '.join(dirs)} equals the verified tree"
+        if why:
+            raise SafetyError(f"{', '.join(dirs)} changed in the source after verification ({why}); {moved_to} lacks that "
+                              f"work, so no removal branch was pushed. Bring the changes over to {moved_to} and remove the "
+                              "directories by hand, or reject this proposal and propose the move again.")
+        return note
 
     def commit(self, cwd, msg: str) -> None:
         """Commit with the configured identity. No AI trailers unless the config asks for them."""
