@@ -261,3 +261,10 @@ def collected(ctx):
     from mimar.collect import run_collect
     run_collect(ctx)
     return ctx
+
+
+@pytest.fixture(autouse=True)
+def _isolate_mimar_home(tmp_path_factory, monkeypatch):
+    """Never let tests read the operator's real ~/.mimar config or state."""
+    if "MIMAR_HOME" not in os.environ or not os.environ["MIMAR_HOME"].startswith(str(tmp_path_factory.getbasetemp())):
+        monkeypatch.setenv("MIMAR_HOME", str(tmp_path_factory.mktemp("mimar-home")))
