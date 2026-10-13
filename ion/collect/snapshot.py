@@ -23,10 +23,21 @@ def write_snapshot(db, run_id: int, snap: dict) -> None:
 
 
 def latest_snapshots(db) -> tuple[dict[str, dict], int]:
-    """Latest snapshot per repo, plus the newest run id (the 'generation')."""
-    rows = db.q("select s.repo, s.blob, s.run_id from snapshots s join "
-                "(select repo, max(run_id) m from snapshots group by repo) x on s.repo=x.repo and s.run_id=x.m")
-    gen = max((r["run_id"] for r in rows), default=0)
+    """The org as the newest complete collect saw it, plus that run's id (the 'generation').
+
+    Scoped to one run on purpose: the newest row per repo name would keep a renamed or
+    deleted repo's last snapshot alive for ever, generating findings for a repo that is
+    no longer there under that name. A partial or unfinished run never becomes the
+    generation, so a budget-stopped collect cannot shrink the org view or advance streaks.
+    """
+    row = db.one("select id from runs where finished is not null and coalesce(partial, 1) = 0 "
+                 "and exists (select 1 from snapshots where run_id = runs.id) order by id desc limit 1")
+    if row is None:
+        row = db.one("select max(run_id) as id from snapshots")
+    gen = row["id"] if row and row["id"] is not None else 0
+    if not gen:
+        return {}, 0
+    rows = db.q("select repo, blob from snapshots where run_id = ?", (gen,))
     return {r["repo"]: json.loads(r["blob"]) for r in rows}, gen
 
 
