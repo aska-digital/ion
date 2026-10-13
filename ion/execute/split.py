@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from .. import proposals
-from ..util import Refused, SafetyError, filter_repo_path
+from ..util import Refused, SafetyError, Waiting, filter_repo_path
 from ..writes import WriteRequest
 from .base import Executor, Plan, Step, filter_args
 from .provenance import origin_callback
@@ -59,9 +59,11 @@ class SplitExecutor(Executor):
 
         def policy():
             notes = []
-            for f in self._policy_fixes(N, private):
+            for f in self._policy_fixes(N, private, base):
                 try:
                     notes.append(apply_policy_fix(self.ctx, f, pid))
+                except (Waiting, Refused):
+                    raise           # a write cap defers the step to the next run; the breaker or kill switch stops it
                 except Exception as e:  # noqa: BLE001
                     notes.append(f"{f['class']}: {e}")
             return "; ".join(notes) or "nothing to apply"
@@ -77,12 +79,12 @@ class SplitExecutor(Executor):
             Step("apply-policy", f"apply the org policy to {N}", None, policy),
         ])
 
-    def _policy_fixes(self, repo: str, private: bool) -> list[dict]:
+    def _policy_fixes(self, repo: str, private: bool, branch: str) -> list[dict]:
+        """Policy for the new repo. Protection goes on `branch`, the branch the history was pushed to."""
         pol = self.cfg["policy"]
         fixes = []
         if pol.get("branch_protection") and not (private and self.cfg.get("plan", "free") == "free"):
-            fixes.append({"class": "branch_protection", "repo": repo, "branch": self.cfg["policy"]["default_branch"],
-                          "settings": pol["branch_protection"]})
+            fixes.append({"class": "branch_protection", "repo": repo, "branch": branch, "settings": pol["branch_protection"]})
         if pol.get("dependabot_alerts"):
             fixes.append({"class": "dependabot_alerts", "repo": repo})
         if pol.get("secret_scanning") == "public_only" and not private:

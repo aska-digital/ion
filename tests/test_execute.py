@@ -282,6 +282,47 @@ def test_split_verify_failure_stops_before_removal(ctx, world, monkeypatch):
     assert not any(b.endswith("-remove") for b in branches(world, "mono"))
 
 
+def test_split_protects_the_branch_it_pushed(ctx, world):
+    g = str(world / "mono.git")
+    sh("git", "--git-dir", g, "branch", "-m", "main", "master")
+    sh("git", "--git-dir", g, "symbolic-ref", "HEAD", "refs/heads/master")
+    p = prep(ctx, "split", {**SPLIT, "source_branch": "master"})                # policy default_branch is still main
+    executor_for(ctx, "split").apply(p, dry_run=False)
+    assert branches(world, "mono-engine") == ["master"]
+    assert ctx.gh.writes_to("PUT", "/repos/acme/mono-engine/branches/master/protection")
+    assert not ctx.gh.writes_to("PUT", "/repos/acme/mono-engine/branches/main/protection")
+
+
+def test_split_policy_step_waits_for_write_cap_instead_of_skipping(ctx, world):
+    p = prep(ctx, "split", SPLIT)
+    ex = executor_for(ctx, "split")
+    ctx.cfg["writes"] = {"caps": {"put_branch_protection": 0}}
+    res = ex.apply(p, dry_run=False)
+    assert res["waiting"] and "put_branch_protection" in res["waiting"]
+    assert not ctx.db.ledger_done(p["id"], "create.apply-policy")
+    assert proposals.get(ctx.db, p["id"])["state"].get("phase", "create") == "create"
+    ctx.cfg["writes"] = {}                                                       # next run: the cap is fresh
+    ctx.writes.reset()
+    ex.apply(proposals.get(ctx.db, p["id"]), dry_run=False)
+    assert ctx.gh.writes_to("PUT", "/repos/acme/mono-engine/branches/main/protection")
+    assert ctx.db.ledger_done(p["id"], "create.apply-policy")
+    assert proposals.get(ctx.db, p["id"])["state"]["phase"] == "pointer"
+
+
+def test_split_policy_step_does_not_swallow_a_tripped_breaker(ctx, world, monkeypatch):
+    import ion.execute.split as split_mod
+    from ion.writes import BreakerTripped
+
+    def tripped(*a, **k):
+        raise BreakerTripped("the run would touch too many repos")
+    monkeypatch.setattr(split_mod, "apply_policy_fix", tripped)
+    p = prep(ctx, "split", SPLIT)
+    with pytest.raises(BreakerTripped):
+        executor_for(ctx, "split").apply(p, dry_run=False)
+    assert not ctx.db.ledger_done(p["id"], "create.apply-policy")
+    assert proposals.get(ctx.db, p["id"])["status"] == "failed"
+
+
 # ---- others ---------------------------------------------------------------------------------
 
 def test_archive_executor_never_deletes(ctx):
