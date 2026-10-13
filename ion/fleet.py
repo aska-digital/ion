@@ -22,7 +22,7 @@ from .analyze import health
 from .collect.snapshot import latest_snapshots
 from .config import parse_repo_override
 from .gitrepo import GitRepo
-from .util import git
+from .util import git, safe_write
 
 
 # ---- grep ------------------------------------------------------------------------------------------------
@@ -76,7 +76,10 @@ def grep_mirrors(ctx, pattern: str, paths: list[str] | None = None, repo_glob: s
 # ---- autofixers -----------------------------------------------------------------------------------------
 
 class Autofixer:
-    """Interface for a fleet change. `find_repos` picks the repos that need it; `apply` edits a fresh checkout."""
+    """Interface for a fleet change. `find_repos` picks the repos that need it; `apply` edits a fresh checkout.
+
+    The checkout's contents are untrusted: a committed symlink can point anywhere on this machine. `apply` writes files
+    with `self.write(workdir, relpath, text)`, which refuses to write through a symlink or outside the checkout."""
     name = ""
     description = ""
     commit_message = ""
@@ -88,6 +91,9 @@ class Autofixer:
 
     def apply(self, workdir: Path, repo: str, snap: dict) -> None:
         raise NotImplementedError
+
+    def write(self, workdir: Path, relpath: str, text: str) -> Path:
+        return safe_write(workdir, relpath, text)
 
 
 FIXERS: dict[str, type[Autofixer]] = {}
@@ -134,9 +140,9 @@ class ReadmeSkeleton(Autofixer):
         return out
 
     def apply(self, workdir, repo, snap):
-        (workdir / "README.md").write_text(
-            f"# {repo}\n\n{snap.get('description') or ''}\n\n## Status\n\n"
-            "TODO: describe what this repository is for, how to run it, and who maintains it.\n")
+        self.write(workdir, "README.md",
+                   f"# {repo}\n\n{snap.get('description') or ''}\n\n## Status\n\n"
+                   "TODO: describe what this repository is for, how to run it, and who maintains it.\n")
 
 
 ECOSYSTEMS = [("pip", re.compile(r"(^|/)(pyproject\.toml|requirements[^/]*\.txt|setup\.py|Pipfile)$")),
@@ -178,9 +184,7 @@ class DependabotConfig(Autofixer):
         lines = ["version: 2", "updates:"]
         for eco, d in detect_ecosystems(files):
             lines += [f"  - package-ecosystem: {eco}", f"    directory: \"{d}\"", "    schedule:", "      interval: weekly"]
-        out = workdir / ".github" / "dependabot.yml"
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text("\n".join(lines) + "\n")
+        self.write(workdir, ".github/dependabot.yml", "\n".join(lines) + "\n")
 
 
 # ---- preview ---------------------------------------------------------------------------------------------

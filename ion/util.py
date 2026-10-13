@@ -61,6 +61,26 @@ def days_since(s: str | None, ref: dt.datetime | None = None) -> float | None:
     return ((ref or now()) - t).total_seconds() / 86400
 
 
+def safe_write(root: str | Path, relpath: str | Path, text: str) -> Path:
+    """Write a file inside a checkout of an untrusted repo. A symlink committed in the repo (README.md, .github, ...)
+    would redirect a plain write outside the checkout, so refuse if any existing part of the path is a symlink or the
+    target resolves outside `root`. Parent directories are created only after the check."""
+    root = Path(root).resolve()
+    rel = Path(relpath)
+    if rel.is_absolute() or ".." in rel.parts:
+        raise SafetyError(f"refusing to write outside the checkout: {relpath}")
+    p = root
+    for part in rel.parts:
+        p = p / part
+        if p.is_symlink():
+            raise SafetyError(f"refusing to write through a symlink in the repo: {p.relative_to(root)}")
+    if not p.resolve().is_relative_to(root):
+        raise SafetyError(f"refusing to write outside the checkout: {relpath}")
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(text)
+    return p
+
+
 def which(name: str, extra: list[str] | None = None) -> str | None:
     found = shutil.which(name)
     if found:

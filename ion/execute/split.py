@@ -2,10 +2,9 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from .. import proposals
-from ..util import Refused, SafetyError, filter_repo_path
+from ..util import Refused, SafetyError, filter_repo_path, safe_write
 from ..writes import WriteRequest
 from .base import Executor, Plan, Step, filter_args
 from .provenance import origin_callback
@@ -108,7 +107,7 @@ class SplitExecutor(Executor):
         def edit():
             self.g(["checkout", "-q", "-B", branch, f"origin/{base}"], cwd=w)
             self.g(["rm", "-r", "-q", *dirs], cwd=w)
-            (Path(w) / "MOVED.md").write_text(
+            safe_write(w, "MOVED.md",
                 f"# Moved\n\n`{', '.join(dirs)}` now live in "
                 f"[{self.cfg.org}/{N}](https://github.com/{self.cfg.org}/{N}) with their full history.\n")
             self.g(["add", "MOVED.md"], cwd=w)

@@ -1,11 +1,12 @@
 """Features 9 (plan-config), 10 (ordered changesets) and 12 (ion grep / autofix)."""
 import json
+import os
 import re
 
 import pytest
 
 from conftest import make_ctx, sh
-from helpers import MERGE, SPLIT, approve, new_proposal
+from helpers import MERGE, SPLIT, approve, new_proposal, outside, plant_symlink
 from ion import changesets, cli, proposals
 from ion.analyze import run_analyze
 from ion.collect import run_collect
@@ -16,7 +17,7 @@ from ion.fleet import (Autofixer, DependabotConfig, ReadmeSkeleton, detect_ecosy
                          preview, register)
 from ion.planconfig import config_diff, plan_config, render
 from ion.propose.engine import run_propose
-from ion.util import Refused, Waiting
+from ion.util import Refused, SafetyError, Waiting
 
 
 # ---- feature 10: changesets ---------------------------------------------------------------------
@@ -238,6 +239,24 @@ def test_readme_skeleton_finds_repos_without_readme(collected, world, tmp_path):
     d = preview(collected, ReadmeSkeleton())
     assert list(d) == ["mono"]                                                               # the only fixture repo with no README
     assert "+# mono" in d["mono"] and "TODO: describe" in d["mono"]
+
+
+def test_autofix_refuses_to_write_through_a_symlinked_github_dir(ctx, world, tmp_path):
+    out = outside(tmp_path)
+    plant_symlink(world, tmp_path, "alpha-core", ".github", str(out))
+    run_collect(ctx)
+    with pytest.raises(SafetyError, match="symlink"):
+        preview(ctx, DependabotConfig(), "alpha-core")
+    assert [f.name for f in out.iterdir()] == ["victim.txt"]
+
+
+def test_readme_skeleton_refuses_a_symlinked_readme(tmp_path):
+    w, out = tmp_path / "w", outside(tmp_path)
+    w.mkdir()
+    os.symlink(out / "victim.txt", w / "README.md")
+    with pytest.raises(SafetyError, match="symlink"):
+        ReadmeSkeleton().apply(w, "mono", {"description": "d"})
+    assert (out / "victim.txt").read_text() == "OPERATOR FILE\n"
 
 
 # ---- feature 9: plan-config ---------------------------------------------------------------------
