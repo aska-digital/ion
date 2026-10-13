@@ -36,19 +36,36 @@ class SplitExecutor(Executor):
             # --force is filter-repo's own flag, local clone only; the callback stamps Ion-Origin on every commit
             self.g(["filter-repo", *fargs, "--commit-callback", origin_callback(self.cfg.org, A), "--force"], cwd=cdir)
 
+        def has_refs() -> bool:
+            return bool(self.g([*self.auth(n_url), "ls-remote", n_url], check=False).stdout.strip())
+
         def create():
             try:
-                self.gh.rest("GET", f"/repos/{self.cfg.org}/{N}")
-                return "exists"
+                existing = self.gh.rest("GET", f"/repos/{self.cfg.org}/{N}")
             except Exception:  # noqa: BLE001
-                pass
+                existing = None
+            if existing is not None:
+                # The filtered history goes into this repo next, so its visibility must be the one we would have
+                # created it with: a public repo of that name must never receive a private source's history.
+                want = "private" if private else "public"
+                if not isinstance(existing.get("private"), bool):
+                    raise SafetyError(f"{N} already exists and its visibility is unknown; refusing to push {want} history")
+                if existing["private"] != bool(private):
+                    have = "private" if existing["private"] else "public"
+                    raise SafetyError(f"{N} already exists and is {have}, but the split is {want}; refusing to push into it")
+                if self.db.one("select 1 from write_log where type='create_repo' and repo=? and proposal=? and ok=1",
+                               (N, pid)):
+                    return "exists (created by this proposal on an earlier run)"
+                if has_refs():
+                    raise SafetyError(f"{N} already exists and has refs; refusing to push into a non-empty repo")
+                return "exists (empty, visibility matches)"
             self.ctx.writes.submit(WriteRequest("create_repo", N, {
-                "name": N, "private": bool(private), "description": f"Split from {A}: {', '.join(dirs)}", "auto_init": False}))
+                "name": N, "private": bool(private), "description": f"Split from {A}: {', '.join(dirs)}", "auto_init": False},
+                pid))
             return "created"
 
         def push():
-            out = self.g([*self.auth(n_url), "ls-remote", n_url], check=False).stdout.strip()
-            if out:
+            if has_refs():
                 raise SafetyError(f"{N} already has refs; refusing to push into a non-empty repo")
             self.g(["remote", "remove", "origin"], cwd=cdir, check=False)
             self.g(["remote", "add", "origin", n_url], cwd=cdir)

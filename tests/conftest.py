@@ -102,6 +102,7 @@ class FakeGH:
         self.merged: set[tuple[str, int]] = set()
         self.prs: dict[tuple[str, int], dict] = {}
         self.archived: set[str] = set()
+        self.private: dict[str, bool] = {}      # repo -> private; repos not listed are public
         self.next_pr = 1
         self.event_id = 100
         self.bot_login = "ion-bot"
@@ -143,7 +144,7 @@ class FakeGH:
         if method == "GET":
             if len(parts) == 3 and parts[0] == "repos":
                 if parts[2] in {p.name[:-4] for p in self.remotes.glob("*.git")} or parts[2] in self.archived:
-                    return {"name": parts[2], "archived": parts[2] in self.archived,
+                    return {"name": parts[2], "archived": parts[2] in self.archived, "private": self.private.get(parts[2], False),
                             "security_and_analysis": {"secret_scanning": {"status": "enabled"}}}
                 raise RuntimeError("404 Not Found")
             if "pulls" in parts:
@@ -161,7 +162,8 @@ class FakeGH:
             return {"number": n}
         if method == "POST" and parts[0] == "orgs" and parts[-1] == "repos":
             sh("git", "init", "-q", "--bare", "-b", "main", str(self.remotes / f"{body['name']}.git"))
-            return {"name": body["name"]}
+            self.private[body["name"]] = bool(body.get("private"))
+            return {"name": body["name"], "private": self.private[body["name"]]}
         if method == "POST" and parts[-1] == "issues" and parts[2] == self.tracker:
             n = len(self.issues) + 1
             self.issues[n] = {"body": body["body"], "title": body["title"], "labels": list(body.get("labels", []))}
