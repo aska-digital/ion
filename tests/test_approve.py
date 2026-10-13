@@ -24,6 +24,17 @@ def test_maintainer_label_approves(ctx):
     assert "state:approved" in str(ctx.gh.writes)
 
 
+def test_needs_decision_label_tracks_awaiting_state(ctx):
+    # The org-wide `needs decision` label is the command-centre feed: a proposal
+    # carries it exactly while it waits for a maintainer.
+    p = setup(ctx)
+    assert "needs decision" in ctx.gh.issues[p["issue_number"]]["labels"]
+    ctx.gh.add_label_event(p["issue_number"], "ion:approved", "maint")
+    sync_approvals(ctx)
+    assert status(ctx, p) == "approved"
+    assert "needs decision" not in ctx.gh.issues[p["issue_number"]]["labels"]
+
+
 def test_non_maintainer_label_is_rejected_and_audited(ctx):
     p = setup(ctx)
     ctx.gh.add_label_event(p["issue_number"], "ion:approved", "mallory")

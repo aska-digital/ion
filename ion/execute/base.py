@@ -2,13 +2,18 @@
 from __future__ import annotations
 
 import json
+import logging
+import re
 import shlex
 from dataclasses import dataclass, field
 from typing import Callable
 
 from ..approve.core import evaluate
+from ..tracker import NEEDS_DECISION
 from ..writes import WriteRequest
 from ..util import Refused, SafetyError, Waiting, guard_git, git, git_env, run  # noqa: F401
+
+log = logging.getLogger("ion")
 
 
 @dataclass
@@ -185,8 +190,30 @@ class Executor:
         return bool(pr.get("merged"))
 
     def open_pr(self, repo: str, head: str, base: str, title: str, body: str) -> int:
-        pr = self.ctx.writes.submit(WriteRequest("open_pr", repo, {"title": title, "head": head, "base": base, "body": body}))
-        return int(pr["number"])
+        m = re.search(r"\[(P-\d+)\]\s*$", title)
+        proposal = m.group(1) if m else None
+        pr = self.ctx.writes.submit(WriteRequest(
+            "open_pr", repo, {"title": title, "head": head, "base": base, "body": body}, proposal))
+        number = int(pr["number"])
+        self._label_pr_needs_decision(repo, number, proposal)
+        return number
+
+    def _label_pr_needs_decision(self, repo: str, number: int, proposal: str | None) -> None:
+        """Put an ion PR that now waits for a maintainer merge into the decision feed.
+
+        This is feed metadata, never a reason to fail a step whose PR already exists.
+        The plan step names the label as well, so the write is not hidden from the approver.
+        """
+        try:
+            self.ctx.writes.submit(WriteRequest(
+                "create_label", repo, {"name": NEEDS_DECISION, "color": "D93F0B"}, proposal))
+        except Exception:  # noqa: BLE001  (an existing label 422s; add_label is the real check)
+            pass
+        try:
+            self.ctx.writes.submit(WriteRequest(
+                "add_label", repo, {"number": number, "labels": [NEEDS_DECISION]}, proposal))
+        except Exception as e:  # noqa: BLE001
+            log.warning("could not label PR %s#%s %r: %s", repo, number, NEEDS_DECISION, str(e)[:160])
 
     def safe_push(self, argv_tail: list[str], cwd, default_branch: str | None, allow_default: bool = False,
                   repo: str = "") -> None:

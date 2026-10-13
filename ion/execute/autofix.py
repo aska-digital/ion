@@ -52,7 +52,7 @@ class AutofixExecutor(Executor):
                 Step(f"{repo}.fix", f"{repo}: clone, apply {fixer_name}, check against the approved diff, commit",
                      ["ion", "autofix", fixer_name, "--repo", repo], fix),
                 Step(f"{repo}.push", f"{repo}: push {branch}", ["git", "push", "origin", f"{branch}:refs/heads/{branch}"], push),
-                Step(f"{repo}.open-pr", f"{repo}: open the PR", None, pr)]
+                Step(f"{repo}.open-pr", f"{repo}: open the PR and label it `needs decision`", None, pr)]
         return Plan(pid, "autofix", "apply", steps)
 
     def _description(self, repo: str) -> str:
