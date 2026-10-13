@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import urllib.request
@@ -55,8 +56,11 @@ class NoneLLM(LLM):
 
 class ClaudeCLI(LLM):
     def _complete(self, prompt: str, model: str) -> str:
+        # The API key belongs to the anthropic_api backend. Inherited here it overrides the
+        # CLI's own seat login, silently degrading every call to templates (seen live).
+        env = {k: v for k, v in os.environ.items() if k not in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")}
         p = subprocess.run(["claude", "-p", "--output-format", "json", "--model", model], input=prompt,
-                           capture_output=True, text=True, timeout=self.cfg["timeout_s"])
+                           capture_output=True, text=True, timeout=self.cfg["timeout_s"], env=env)
         if p.returncode != 0:
             raise LLMError(f"claude exited {p.returncode}: {p.stderr.strip()[:200]}")
         try:

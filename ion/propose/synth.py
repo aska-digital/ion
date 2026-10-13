@@ -103,7 +103,7 @@ def synthesize(cand: dict, plan_lines: list[str], llm) -> dict:
         out = llm.complete_json(prompt_for(cand, base), structural=cand["kind"] in ("merge", "split"))
         jsonschema.validate(out, SYNTH_SCHEMA)
     except (LLMError, ValueError, jsonschema.ValidationError, Exception) as e:  # noqa: BLE001
-        log.warning("synth fallback for %s: %s", cand.get("key"), type(e).__name__)
+        log.warning("synth fallback for %s: %s: %s", cand.get("key"), type(e).__name__, str(e)[:200])
         return base
     out["confidence"] = min(out["confidence"], base["confidence"])      # may only lower
     out["migration_plan"] = plan_lines                                  # the real plan is the executor's, not the model's
