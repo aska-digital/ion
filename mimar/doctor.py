@@ -44,6 +44,11 @@ def doctor(ctx, cfg_error: str | None = None) -> list[dict]:
             out.append(_ok("bus", False, f"client not found: {client}"))
         else:
             py = os.path.expanduser(cfg["bus"].get("python") or sys.executable)
+            keyfile = os.path.expanduser(cfg["bus"].get("key") or f"~/.divan/{cfg['bus']['seat']}.key")
+            out.append(_ok("bus seat key", os.path.exists(keyfile),
+                           f"{keyfile} " + ("present" if os.path.exists(keyfile) else
+                                            f"MISSING: seat '{cfg['bus']['seat']}' cannot sign, so it cannot read its inbox or post "
+                                            "(not created by mimar; register the seat on the bus first)")))
             try:
                 rc, o, e = ctx.bus_runner([py, os.path.expanduser(client), "head"],
                                           {"DIVAN_URL": cfg["bus"]["url"], "DIVAN_SEAT": cfg["bus"]["seat"]}, None)

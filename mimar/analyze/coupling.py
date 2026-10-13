@@ -15,6 +15,7 @@ MANIFESTS = ("pyproject.toml", "package.json", "requirements.txt", "Cargo.toml",
 BOILERPLATE = re.compile(r"(^|/)(LICENSE[^/]*|COPYING|CODE_OF_CONDUCT\.md|CONTRIBUTING\.md|SECURITY\.md|\.gitignore|"
                          r"\.github/.*|__init__\.py|conftest\.py)$", re.I)
 WEIGHTS = {"xref": 0.6, "dup": 0.6, "cochange": 0.6, "deps": 0.3, "prefix": 0.05}
+CORROBORATION = 0.35   # a content signal must reach this to vouch for co-change (a README link alone, at 0.3, does not)
 DEFAULT_FILTERS = {"max_changeset_size": 40, "min_revs": 5, "min_shared_revs": 3, "prefix_weight": 0.05,
                    "bot_authors": ["dependabot", "renovate", "github-actions", "[bot]", "pre-commit-ci"],
                    "own_names": [], "own_emails": []}
@@ -279,13 +280,14 @@ def combine(signals: dict[str, float], weights: dict[str, float] | None = None) 
     """Noisy-or of weighted signals.
 
     - Co-change alone is half-weighted: one author working on several repos on the same days is weak evidence unless a
-      content signal (xref, duplication, shared deps) agrees.
+      substantive content signal (xref, duplication, shared deps, at least CORROBORATION) agrees. A mere README link
+      scores 0.3 and is not enough.
     - A shared name prefix counts only when some other signal is at least 0.15: `protean-*` repos share a prefix because
       of their naming scheme, not because they should be merged, and the v1 live run showed that this alone flooded the
       coupled-pairs list."""
     w = {**WEIGHTS, **(weights or {})}
     sig = dict(signals)
-    if max(sig.get("xref", 0), sig.get("dup", 0), sig.get("deps", 0)) < 0.3:
+    if max(sig.get("xref", 0), sig.get("dup", 0), sig.get("deps", 0)) < CORROBORATION:
         sig["cochange"] = sig.get("cochange", 0) * 0.5
     if max(sig.get(k, 0) for k in ("xref", "dup", "deps", "cochange")) < 0.15:
         sig["prefix"] = 0.0

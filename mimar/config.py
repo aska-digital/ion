@@ -18,7 +18,7 @@ DEFAULTS: dict = {
     "tracker_repo": "mimar-tracker",  # keep this repo PRIVATE: proposal bodies name private repos
     "approval_sources": ["github_label"],
     "bus": {"url": "http://127.0.0.1:8787", "seat": "mimar", "notify": None, "maintainer_seats": [],
-            "client": None, "python": None},
+            "client": None, "python": None, "key": None},
     "notifiers": [{"type": "stdout"}],
     "llm": {"backend": "none", "model_default": "haiku", "model_structural": "sonnet", "max_calls_per_run": 20,
             "timeout_s": 180, "api_models": {"haiku": "claude-haiku-5-5", "sonnet": "claude-sonnet-5-5"}},
@@ -155,6 +155,8 @@ class Config(dict):
 
 def load_config(path: str | Path | None = None, overrides: dict | None = None) -> Config:
     p = Path(path).expanduser() if path else find_config_file()
+    if path and not p.exists():
+        raise ConfigError(f"config file not found: {p}")
     data = {}
     if p and p.exists():
         data = yaml.safe_load(p.read_text()) or {}

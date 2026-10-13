@@ -312,8 +312,24 @@ def cmd_dashboard(ctx, args):
     return 0
 
 
+def _hoist_config(argv: list[str]) -> list[str]:
+    """Accept `--config FILE` after the subcommand too (`mimar doctor --config x.yml`)."""
+    out, cfg, i = [], None, 0
+    while i < len(argv):
+        a = argv[i]
+        if a == "--config" and i + 1 < len(argv):
+            cfg, i = argv[i + 1], i + 2
+            continue
+        if a.startswith("--config="):
+            cfg, i = a.split("=", 1)[1], i + 1
+            continue
+        out.append(a)
+        i += 1
+    return (["--config", cfg] if cfg else []) + out
+
+
 def main(argv=None) -> int:
-    args = build_parser().parse_args(argv)
+    args = build_parser().parse_args(_hoist_config(list(sys.argv[1:] if argv is None else argv)))
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING, format="%(levelname)s %(message)s")
     if args.cmd in ("pause", "resume"):
         f = home() / "PAUSED"

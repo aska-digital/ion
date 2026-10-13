@@ -74,3 +74,9 @@ def test_name_prefix_alone_no_longer_creates_coupling():
 def test_prefix_weight_is_configurable():
     base = combine({"prefix": 1.0, "dup": 0.5}, {"prefix": 0.05})
     assert combine({"prefix": 1.0, "dup": 0.5}, {"prefix": 0.5}) > base
+
+
+def test_a_readme_link_does_not_vouch_for_cochange():
+    """The v1 live run: two protean-* repos, one author, a README link (xref 0.3), co-change 0.8 reached the merge threshold."""
+    assert combine({"xref": 0.3, "dup": 0.131, "cochange": 0.8, "prefix": 1.0}) < 0.6
+    assert combine({"xref": 0.7, "cochange": 0.8}) > combine({"xref": 0.7})          # a real reference still lets co-change count fully

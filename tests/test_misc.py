@@ -179,6 +179,19 @@ def test_doctor_reports_checks(ctx):
     assert not {c["name"]: c for c in doctor(ctx)}["bus"]["ok"]
 
 
+def test_doctor_checks_the_bus_seat_key_without_creating_it(ctx, tmp_path):
+    from mimar.doctor import doctor
+    client = tmp_path / "divan.py"
+    client.write_text("# stub")
+    ctx.cfg["approval_sources"] = ["divan_bus"]
+    ctx.cfg["bus"].update(client=str(client), python="python3", seat="mimar", key=str(tmp_path / "mimar.key"))
+    checks = {c["name"]: c for c in doctor(ctx)}
+    assert checks["bus"]["ok"] and not checks["bus seat key"]["ok"] and "MISSING" in checks["bus seat key"]["detail"]
+    assert not (tmp_path / "mimar.key").exists()                                    # doctor never creates a key
+    (tmp_path / "mimar.key").write_text("k")
+    assert {c["name"]: c for c in doctor(ctx)}["bus seat key"]["ok"]
+
+
 def test_tokens_are_redacted():
     from mimar.util import redact
     assert "gho_" not in redact("auth failed for gho_" + "a" * 36) and "sk-ant" not in redact("key sk-ant-" + "b" * 30)

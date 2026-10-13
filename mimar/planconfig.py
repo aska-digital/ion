@@ -67,7 +67,7 @@ def plan_config(ctx, new_cfg) -> dict:
             policy["new_drift"].append({**label, "action": an})
         elif so == "drift" and sn != "drift":
             policy["resolved_drift"].append(label)
-        if ao != an and so is not None and sn is not None:
+        if ao != an and so is not None and sn is not None and "drift" in (so, sn):     # only where it changes what happens
             policy["action_changes"].append({**label, "old": ao, "new": an})
 
     tracked = []
@@ -110,7 +110,7 @@ def plan_config(ctx, new_cfg) -> dict:
 
 def render(r: dict) -> list[str]:
     L = ["plan-config: effect of the new config on the current snapshot (nothing is written)", ""]
-    L.append("config changes: " + ("none" if not r["config_changes"] else ""))
+    L.append("config changes:" + (" none" if not r["config_changes"] else ""))
     for c in r["config_changes"]:
         L.append(f"  {c['key']}: {c['old']!r} -> {c['new']!r}")
     L.append(f"repos analyzed: {r['analyzed']['old']} -> {r['analyzed']['new']};  coupled pairs: "

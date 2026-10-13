@@ -9,11 +9,26 @@ collect -> analyze -> propose -> approve -> execute -> report
 ```
 
 - **collect**: one batched GraphQL query for metadata, plus bare git mirrors under `~/.mimar/cache` for contents. No REST contents calls.
-- **analyze** (deterministic, no LLM): per-repo health, policy drift, pairwise coupling, in-repo cohesion, lifecycle.
-- **propose**: scores, hysteresis, cooldown, an optional LLM pass that writes the text, one tracking issue per proposal.
-- **approve**: a maintainer applies a label (or sends a bus message). Mimar checks who did it.
-- **execute**: the only layer that writes. Dry run by default. Ledgered, resumable.
-- **report**: markdown dashboard, short digest to your notifiers.
+- **analyze** (deterministic, no LLM): per-repo health, policy drift, pairwise coupling, in-repo cohesion, staged lifecycle, tag boundaries.
+- **propose**: scores, hysteresis, cooldown, an optional LLM pass that writes the text, one tracking issue per proposal, each with a plan hash.
+- **approve**: a maintainer applies a label, sends a bus message or ticks a dashboard box. Mimar checks who did it and which plan they saw.
+- **execute**: the only layer that writes, and only through typed, capped, logged write requests. Dry run by default. Ledgered, resumable, behind a circuit breaker.
+- **report**: the "Org health" dashboard issue, a markdown report, a short digest to your notifiers.
+
+## Features
+
+- **Typed write requests with per-run caps.** Every GitHub write is a validated request of a known type; each type has a cap per run (5 PRs, 1 archive, ...). Over the cap, work waits for the next run.
+- **Circuit breaker.** A run that would touch more than a quarter of the org, archive more than 2 repos, lower branch protection anywhere, or make too many writes is aborted before it writes.
+- **Approval bound to a plan hash.** The issue shows `plan-sha256: ...`; an approval counts only for that hash; any re-plan takes the label off and asks again.
+- **Action level per policy** (`log`, `issue`, `fix`) and **opt-in or opt-out** per repo.
+- **Co-change hygiene.** Huge commits, bots and Mimar's own identity are ignored; minimum revision counts; the shared-name-prefix signal is down-weighted and never counts alone.
+- **Exact verification of moves.** Tree equality plus the filter-repo commit map, and a `Mimar-Origin: org/repo@sha` trailer on every moved commit.
+- **Org health dashboard issue** with approve and hold checkboxes, where the actor is still verified.
+- **Staged lifecycle** (active, stale, archive-proposed) with a frozen exemption. Archiving is never automatic.
+- **`mimar plan-config`** previews what a config change would do before you use it.
+- **Ordered changesets**: multi-repo proposals list their PRs in order, with dependencies and live states.
+- **Boundary rules from repo tags** (GitHub topics): violations are findings, cross-scope merges are blocked or flagged.
+- **`mimar grep`** over every repo's mirror, and **`mimar autofix`** for fleet changes (preview diffs, then a proposal; PRs only after approval).
 
 ## Install
 
@@ -27,9 +42,22 @@ uv run mimar --config mimar.yml doctor
 
 `doctor` checks gh auth, git and subtree, filter-repo, the LLM backend, the bus (if used) and the config.
 
+## Architecture
+
+```
+collect -> analyze -> propose -> approve -> execute -> report
+              |                    ^           |
+        boundaries,            label, bus,   typed write requests
+        lifecycle,             dashboard     -> caps -> circuit breaker
+        coupling                 box            -> GitHub / git push
+                              (bound to the plan hash)
+```
+
+Source layout: `mimar/collect` (GraphQL, mirrors, snapshots), `mimar/analyze` (health, policy, coupling, cohesion, lifecycle, boundaries), `mimar/propose` (scoring, LLM text, engine), `mimar/approve` (label, bus, state machine), `mimar/execute` (one executor per proposal kind, `provenance.py` for verification), `mimar/writes.py` (typed requests, caps, breaker), `mimar/changesets.py`, `mimar/report` (markdown, digest, `orghealth.py` for the dashboard issue), `mimar/fleet.py` (grep, autofix), `mimar/planconfig.py`. The full design is in `SPEC.md`.
+
 ## Configure
 
-Copy `mimar.example.yml` to `mimar.yml` and edit. Pass it with `--config`, or set `MIMAR_CONFIG`, or keep it at `./mimar.yml` or `~/.mimar/mimar.yml`. State lives in `~/.mimar/state.db` (`MIMAR_HOME` overrides). Per-repo overrides go in `<repo>/.github/mimar.yml` (keys: `maintainers`, `ignore`, `policy`).
+Copy `mimar.example.yml` to `mimar.yml` and edit. Pass it with `--config`, or set `MIMAR_CONFIG`, or keep it at `./mimar.yml` or `~/.mimar/mimar.yml`. State lives in `~/.mimar/state.db` (`MIMAR_HOME` overrides). Per-repo overrides go in `<repo>/.github/mimar.yml` (keys: `maintainers`, `ignore`, `enabled`, `policy`, `policy_actions`).
 
 Keys worth knowing:
 
@@ -38,10 +66,17 @@ Keys worth knowing:
 | `org` | the organisation to steward |
 | `maintainers` | GitHub logins whose approval counts |
 | `tracker_repo` | repo where proposals are filed as issues. **Keep it private.** Proposal bodies name your private repos and quote their metadata. Default `mimar-tracker`. |
-| `approval_sources` | `github_label` (default), `divan_bus` |
+| `approval_sources` | `github_label` (default), `divan_bus`, `dashboard` (checkboxes on the Org health issue) |
 | `notifiers` | list of `stdout`, `file`, `divan_bus`, `github_issue`, `webhook` |
 | `llm.backend` | `none` (default), `claude_cli`, `anthropic_api` |
-| `auto_apply` | policy fixes Mimar may apply without approval. Empty by default. |
+| `policy_actions` | per policy class (`branch_protection`, `dependabot_alerts`, `secret_scanning`, `required_files`): `log` (record only), `issue` (propose, needs approval; the default) or `fix` (apply unattended). `auto_apply` is the old spelling of `fix`. |
+| `policy_strategy` | `opt-out` (default: every repo is governed unless it sets `enabled: false`) or `opt-in` |
+| `guards` | circuit breaker: `max_repo_fraction`, `min_repos`, `max_archives`, `max_writes`, `forbid_protection_lowering` |
+| `writes.caps` | per-run cap by write type, for example `{open_pr: 5, archive_repo: 1}` |
+| `coupling` | co-change filters: `max_changeset_size`, `min_revs`, `min_shared_revs`, `prefix_weight`, `bot_authors` |
+| `lifecycle` | `dormant_days`, `frozen` (repos), `frozen_topic` |
+| `boundaries` | tag rules `[{from, allow}]`, `scope_prefix`, `block_cross_scope_merge` |
+| `report.org_health_issue` | publish the Org health dashboard issue |
 | `thresholds` | `merge_coupling`, `split_cohesion_gap`, `stale_days`, `persist_runs`, `cooldown_days`, ... |
 | `quorum`, `quorum_by_kind` | approvals required per proposal |
 | `approval_ttl_days` | approvals expire (default 14) |
@@ -64,40 +99,58 @@ A failed delivery is queued in the database and retried on the next run. A diges
 
 ## Approval flow
 
-1. Mimar files an issue `[P-0007] merge a into b` in the tracker repo, labelled `mimar:proposal`, `kind:<k>`, `state:<s>`. The body holds the evidence, the exact commands the executor will run, the rollback and the blast radius. Mimar edits the body in place and never comments.
-2. A maintainer adds `mimar:approved`, `mimar:rejected` or `mimar:hold`. Mimar reads the issue **timeline** and takes the actor of the label event. A label from anyone who is not a maintainer (for the repos involved) is recorded as ignored and has no effect. A label removed again is withdrawn.
-3. Alternatively, with `divan_bus` as an approval source, a message `mimar approve|reject|hold P-0007` from a seat listed in `bus.maintainer_seats` counts, after its signature is verified through the bus client. Mimar mirrors the decision onto the issue as the label, so the record lives on GitHub. Those mirrored label events are Mimar's own and are not counted twice.
-4. Approvals expire after `approval_ttl_days`, and also when the plan changes (different commands, or the score moves by 0.15 or more). Then the proposal goes back to awaiting approval.
-5. `quorum` distinct approvers are needed (per kind if set).
-6. Rejected proposals are suppressed for `cooldown_days` unless the score rises by 0.15.
+1. Mimar files an issue `[P-0007] merge a into b` in the tracker repo, labelled `mimar:proposal`, `kind:<k>`, `state:<s>`. The body holds the evidence, the changesets in order, the exact commands the executor will run, the rollback, the blast radius and **`plan-sha256: <hash>`**. Mimar edits the body in place and never comments.
+2. A maintainer decides in one of three ways:
+   - adds `mimar:approved`, `mimar:rejected` or `mimar:hold`. Mimar reads the issue **timeline** and takes the actor of the label event. A decision label from anyone who is not a maintainer (for the repos involved) is recorded as ignored and **taken off again** (one API call, no comment);
+   - sends a Divan Bus message `mimar approve|reject|hold P-0007` (optionally `plan-sha256:<prefix>`) from a seat in `bus.maintainer_seats`, after its signature is verified. Mimar mirrors the decision onto the issue as the label, so the record lives on GitHub;
+   - ticks the approve or hold box on the **Org health** issue (`approval_sources: [dashboard]`). Mimar reads that issue's edit history and accepts the tick only if every edit since its own last write was made by a maintainer; an edit it cannot attribute fails closed.
+3. **An approval counts only for the plan the approver saw.** Mimar records which plan hash was on display just before each decision. If the plan changes (different commands, or the score moves by 0.15 or more) the hash changes, the recorded approvals stop counting, `mimar:approved` and `mimar:hold` come off the issue, and approval is asked again. A decision made before any plan was displayed never counts.
+4. Approvals expire after `approval_ttl_days` (the label comes off too). `quorum` distinct approvers are needed (per kind if set).
+5. Rejected proposals are suppressed for `cooldown_days` unless the score rises by 0.15.
+6. Archiving is never automatic: it always needs its own approval, whatever the policy actions say.
 
 A candidate must persist across `persist_runs` collection snapshots before it becomes a proposal.
 
 ### How coupling is scored
 
-Per repo pair: cross-references (manifests, imports, git URLs, README links), duplicated code (identical blobs plus MinHash near-duplicates over normalised lines, ignoring vendored, lock and generated files), co-change (same author active in both repos within a day), shared dependency set, shared name prefix. They combine as a noisy-or with weights `0.6, 0.6, 0.6, 0.3, 0.15`. Co-change is half-weighted unless a content signal agrees, because one person working on several repos on the same days proves little. One saturated signal alone reaches exactly 0.6, the merge threshold. Public/private pairs are flagged as a visibility decision.
+Per repo pair: cross-references (manifests, imports, git URLs, README links), duplicated code (identical blobs plus MinHash near-duplicates over normalised lines, ignoring vendored, lock and generated files), co-change, shared dependency set, shared name prefix. They combine as a noisy-or with weights `0.6, 0.6, 0.6, 0.3, 0.05`. One saturated signal alone reaches exactly 0.6, the merge threshold. Public/private pairs are flagged as a visibility decision.
+
+- **Co-change** is shared revisions divided by the average number of revisions of the two repos. A revision is a day with a kept commit. Commits touching more than `max_changeset_size` files, commits by bots and commits by Mimar's own git identity are left out; a repo needs `min_revs` revisions and a pair `min_shared_revs` shared ones. Co-change is half-weighted unless a content signal agrees, because one person working on several repos on the same days proves little.
+- **Name prefix** counts only when another signal is at least 0.15, with a small weight. Repos named `protean-*` share a prefix because of a naming scheme.
 
 ## Commands
 
 ```
 mimar collect | analyze | propose [--dry-run] | sync-approvals | execute [--apply] [P-0007]
 mimar report | run [--apply] | status | explain P-0007 | pause | resume | doctor
+mimar grep PATTERN [--path GLOB] [--repo GLOB] [-i] [-F]
+mimar autofix [NAME] [--repo GLOB] [--propose]
+mimar plan-config NEW.yml            (or --set key=value ...)
+mimar dashboard [--print]
 ```
 
 `run` is the whole pipeline and what the scheduler calls. Executors dry-run unless `--apply` is given.
 
+- `mimar grep` searches the default branch of every mirrored repo with `git grep`. No API calls.
+- `mimar autofix` lists the autofixers; `mimar autofix NAME` prints the diffs it would make (nothing is written anywhere); `--propose` files one proposal for them. PRs are opened only by the executor, after a maintainer approves exactly those diffs. Write your own by subclassing `mimar.fleet.Autofixer`, calling `register`, and naming the module under `autofix.plugins` in the config.
+- `mimar plan-config` compares the current config with a new one over the same snapshot: candidates gained and lost, policy drift, repos that would opt out, lifecycle changes, boundary violations, open proposals that would be re-planned. It writes nothing.
+
 ## Safety model
 
-- **Approval before structure.** Every executor's `apply` calls one gate first (also for dry runs). It refuses unless the proposal has a verified approval, or is a `policy_fix` (or `health_fix`) whose class is in `auto_apply`. A status flag in the database is not approval: the gate re-derives it from recorded, maintainer-verified approvals, the epoch, quorum and TTL.
+- **Approval before structure.** Every executor's `apply` calls one gate first (also for dry runs). It refuses unless the proposal has a verified approval *for its current plan hash*, or is a `policy_fix` or `health_fix` whose class has action level `fix` in a governed repo. A status flag in the database is not approval: the gate re-derives it from recorded, maintainer-verified approvals, the epoch, the plan hash, quorum and TTL. Archive, merge, split and the rest can never be unattended.
+- **Typed writes with caps.** Nothing but `mimar/writes.py` calls a mutating GitHub API (a test enforces this). Each request is schema-validated, counted against a per-type cap for the run, checked by the breaker and logged in `write_log`. A request over its cap is deferred to the next run, not failed. Pushes must target `mimar/*` branches, never the default branch.
+- **Circuit breaker.** Before an `--apply` run writes anything, a preflight adds up its blast radius; every write is checked again in flight. More than a quarter of the repos, more than 2 archives, any branch-protection change that is weaker than the current rule, or more than 150 writes: the run stops, says so in the digest, and records the trip (`mimar status`).
 - **Kill switch.** `mimar pause` (creates `~/.mimar/PAUSED`) or `paused: true` stops every executor and all tracker writes. Reads still work.
-- **Nothing irreversible.** No deletes of repos, branches or history. Archive instead of delete. No force push, ever: a guard rejects `--force`, `-f`, `--force-with-lease`, `+refspec`, `:ref` deletes and branch deletion in any git call the executors make. Executors push only to `mimar/P-xxxx*` branches, except the first push into a brand new empty repo during a split, which is refused if the repo already has refs.
-- **History kept.** Merge uses `git subtree add` without `--squash`, and checks that the source tip is an ancestor of the result. Split uses `git filter-repo` on a fresh clone, creates the new repo, pushes, verifies the commit count, and only then opens a PR in the source that removes the directory. Nothing is removed from the source before the new repo is verified.
+- **Nothing irreversible.** No deletes of repos, branches or history. Archive instead of delete. No force push, ever: a guard rejects `--force`, `-f`, `--force-with-lease`, `+refspec`, `:ref` deletes and branch deletion in any git call the executors make.
+- **History kept and verified exactly.** Merge uses `git subtree add` without `--squash` and checks that the target's `HEAD:<prefix>` tree equals the source tip's tree and that the tip is an ancestor of the result. Split and move use `git filter-repo` on a fresh clone and check the commit map (every source commit touching the moved paths has a counterpart) and tree equality before anything is removed from the source. Counting commits is not a check. Rewritten commits carry `Mimar-Origin: <org>/<repo>@<sha>`; the merge commit carries `Mimar-Proposal` and `Mimar-Origin`.
+- **Ordered changesets.** A dependent step (the pointer PR, the removal PR, the archive) refuses to run until the PR or step before it has landed.
 - **Archive is a separate approval** after a merge (`archive_requires_second_approval`, default true).
 - **Ledger.** Every step writes a `before` and an `after` row, so a failed run resumes without repeating finished steps (`mimar explain P-0007` shows it).
 - **Low noise.** Issues are edited in place. Mimar never comments on other repos and opens PRs only for real changes. A maintainer merges them; Mimar never merges its own PRs.
 - **Gentle on the API.** Metadata is GraphQL with a points budget per run. Contents come from local mirrors.
 - **Untrusted text.** Repo names, descriptions and file contents given to an LLM are marked as data. LLM output is schema-validated, may only lower confidence, cannot add repos, and the plan shown to maintainers always comes from the executor, not the model.
 - Tokens come from `gh` and are never put on a command line or in logs; git uses a credential helper that calls `gh auth token` at run time.
+- **Licences.** `scripts/check_licenses.py` fails if any dependency is outside MIT, BSD, Apache-2.0, ISC, PSF or MPL-2.0. No GPL dependency, ever (pygit2 is refused by name).
 
 ## Tests
 
@@ -105,7 +158,13 @@ mimar report | run [--apply] | status | explain P-0007 | pause | resume | doctor
 uv run pytest -q
 ```
 
-Fully offline: fixture git repos in temp dirs, recorded GraphQL JSON, a stubbed LLM, a fake GitHub that records writes, a fake bus client. Merge and split run end to end against local bare repos.
+Fully offline: fixture git repos in temp dirs, recorded GraphQL JSON, a stubbed LLM, a fake GitHub that records writes, a fake bus client. Merge, split, move and fleet autofix run end to end against local bare repos.
+
+```sh
+uv run python scripts/check_licenses.py     # the licence allowlist; also run by CI
+```
+
+`.github/workflows/ci.yml` runs both on Ubuntu with Python 3.12.
 
 ## Deployment
 
@@ -119,6 +178,48 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.aska.mimar.plist
 It runs `mimar run` daily at 06:30 and logs to `~/.mimar/mimar.log`. The shipped plist runs executors as dry runs; add `--apply` after `run` once you trust the proposals. Keep the source outside `~/Documents` (macOS privacy prompts).
 
 Phase 2 (when cost or uptime justify it): a GitHub App identity and a GitHub Actions schedule with `llm.backend: anthropic_api`. Only config changes.
+
+## Prior art and credits
+
+Mimar's designs stand on published work by other projects. **No code was copied from any of them**; the ideas were re-implemented from their documentation and described behaviour. Nothing is vendored (see `THIRD_PARTY.md`). Names and marks belong to their owners, and none is used as a Mimar feature name.
+
+| Project | Licence | Idea taken |
+|---|---|---|
+| gh-aw (GitHub Agentic Workflows) | MIT | typed "safe outputs": the agent only proposes writes, a separate step validates them and enforces per-type limits |
+| actions/stale | MIT | a hard cap on API writes per run (`operations-per-run`) |
+| Peribolos (Prow) | Apache-2.0 | abort when a run would change too much (`--maximum-removal-delta`, minimum admins) |
+| palantir/policy-bot | Apache-2.0 | approvals invalidated when the thing approved changes; edited approvals are not trusted |
+| Prow (approve, OWNERS, lifecycle, branchprotector) | Apache-2.0 | a notifier edited in place; staged stale-then-rotten lifecycle with a frozen exemption; branch protection from central config |
+| ossf/allstar | Apache-2.0 | per-policy action level (log, issue, fix) and opt-in or opt-out strategy |
+| ossf/scorecard | Apache-2.0 | separating atomic findings from aggregate scores |
+| todogroup/repolinter | Apache-2.0 | rules with levels and optional fixes |
+| github/safe-settings, probot/settings | ISC | dry-run preview of a settings change; per-repo overrides of org settings |
+| Renovate | AGPL-3.0 (design only) | the dashboard issue layout: one issue regenerated each run, with sections and checkboxes |
+| Sourcegraph batch changes, Skyscanner/turbolift | Apache-2.0 (src-cli); Apache-2.0 | preview before apply; a campaign tracks its changesets |
+| lindell/multi-gitter | Apache-2.0 | run a change per repo with a dry-run that shows diffs |
+| asottile/all-repos | MIT | grep over local clones; the find-repos plus apply autofixer shape |
+| github-community-projects/evergreen | MIT | detecting ecosystems to generate a Dependabot configuration |
+| Zuul | Apache-2.0 | cross-repo `Depends-On` ordering of changes |
+| Copybara | Apache-2.0 | a provenance label on every migrated commit |
+| josh, splitsh/lite | MIT | a split is a deterministic function of history, so it can be re-verified |
+| newren/git-filter-repo | MIT | the commit map (`.git/filter-repo/commit-map`) used for exact verification; the tool itself is run as a separate program |
+| bors-ng | Apache-2.0 | verify the combined result before declaring success |
+| code-maat and Adam Tornhill's change-coupling method | GPL-3.0 (method only) | coupling as shared revisions over average revisions, with minimum counts and a maximum changeset size |
+| CodeScene | proprietary (ideas only) | temporal coupling and knowledge-loss as signals worth building towards |
+| Nx, Turborepo, Bazel | MIT, MIT, Apache-2.0 | tag-based allowed-dependency rules (module boundaries, visibility) |
+| Mergify | open engine formerly Apache-2.0; now closed | a config simulator to test a rule before committing it |
+| PR-Agent, SWE-agent | MIT | self-check of generated text; a record of model calls (planned, see `SPEC.md` section 8) |
+
+Licences were checked on 2026-10-13 against each project's LICENSE file. If you think a credit is missing or wrong, open an issue.
+
+## Contributing
+
+Contributions are welcome. Read `CONTRIBUTING.md` first; the short version:
+
+- Mimar is Apache-2.0. **Do not copy code from other projects.** Re-implement ideas in your own words and credit them in the table above. If you ever vendor code, it must be MIT, BSD, Apache-2.0 or ISC, recorded in `THIRD_PARTY.md` with the upstream commit and the licence text.
+- Never add a GPL, LGPL or AGPL dependency (`scripts/check_licenses.py` fails the build).
+- Every change needs tests (`uv run pytest -q`), and anything that writes to GitHub must go through a typed write request.
+- Report security problems privately, see `SECURITY.md`. Be kind, see `CODE_OF_CONDUCT.md`.
 
 ## Licence
 
