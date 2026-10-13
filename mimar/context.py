@@ -41,6 +41,4 @@ class Context:
 
     def work_dir(self, pid: str) -> Path:
         root = self.work_root or (home() / "work")
-        d = Path(root) / pid
-        d.mkdir(parents=True, exist_ok=True)
-        return d
+        return Path(root) / pid

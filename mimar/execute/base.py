@@ -1,0 +1,182 @@
+"""Executor base: plan/apply/verify/rollback_notes, the approval gate, ledgered steps."""
+from __future__ import annotations
+
+import json
+import shlex
+from dataclasses import dataclass, field
+from typing import Callable
+
+from ..approve.core import evaluate
+from ..util import Refused, SafetyError, guard_git, git, git_env, run
+
+
+class Waiting(Exception):
+    """A step that cannot proceed yet (e.g. PR not merged). Not an error, not recorded as done."""
+
+
+@dataclass
+class Step:
+    name: str
+    desc: str
+    cmd: list[str] | None = None            # exact command shown to maintainers
+    fn: Callable[[], str | None] | None = None
+    mutates: bool = True
+
+
+@dataclass
+class Plan:
+    proposal: str
+    kind: str
+    phase: str
+    steps: list[Step] = field(default_factory=list)
+
+    def render(self) -> list[str]:
+        lines = []
+        for s in self.steps:
+            lines.append(f"[{s.name}] {s.desc}")
+            if s.cmd:
+                lines.append("    $ " + " ".join(shlex.quote(c) for c in s.cmd))
+        return lines
+
+    def commands(self) -> list[str]:
+        return [" ".join(shlex.quote(c) for c in s.cmd) for s in self.steps if s.cmd]
+
+    def fingerprint(self) -> str:
+        import hashlib
+        return hashlib.sha256(json.dumps([(s.name, s.cmd) for s in self.steps]).encode()).hexdigest()[:16]
+
+
+def check_gate(ctx, p: dict) -> str:
+    """Raise Refused unless the proposal may be applied. Returns the basis ('approval' or 'allowlisted policy_fix')."""
+    cfg = ctx.cfg
+    if ctx.cfg.is_paused():
+        raise Refused("kill switch is on (PAUSED file or paused: true)")
+    if p["status"] in ("rejected", "dropped", "done"):
+        raise Refused(f"proposal is {p['status']}")
+    if p["kind"] == "policy_fix":
+        if p["subject"].get("class") in cfg["auto_apply"]:
+            return "allowlisted policy_fix"
+    if p["kind"] == "health_fix" and "health_fix" in cfg["auto_apply"]:
+        return "allowlisted health_fix"
+    started = bool(p["state"].get("started"))
+    ev = evaluate(ctx, p, ignore_ttl=started)
+    if ev["state"] != "approved":
+        raise Refused(f"no verified approval ({ev['state']}: {ev['reason']})")
+    return "approval"
+
+
+class Executor:
+    kind = ""
+
+    def __init__(self, ctx):
+        self.ctx = ctx
+        self.cfg, self.db, self.gh = ctx.cfg, ctx.db, ctx.gh
+
+    # interface ------------------------------------------------------------------------
+    def plan(self, p: dict) -> Plan:
+        raise NotImplementedError
+
+    def verify(self, p: dict) -> bool:
+        return True
+
+    def rollback_notes(self, p: dict) -> list[str]:
+        return []
+
+    def after_phase(self, p: dict, plan: Plan) -> None:
+        """Hook run after all steps of a phase succeeded (advances the phase machine)."""
+
+    # execution ------------------------------------------------------------------------
+    def apply(self, p: dict, plan: Plan | None = None, dry_run: bool = True) -> dict:
+        basis = check_gate(self.ctx, p)          # enforced for dry runs too: no plan output without standing
+        plan = plan or self.plan(p)
+        if dry_run:
+            return {"dry_run": True, "basis": basis, "phase": plan.phase, "plan": plan.render(), "done": [], "waiting": None}
+        pid = p["id"]
+        if not p["state"].get("started"):
+            self.db.set_state(pid, started=True)
+            self.db.x("update proposals set status='executing' where id=?", (pid,))
+        done, waiting = [], None
+        for st in plan.steps:
+            key = f"{plan.phase}.{st.name}"
+            if self.db.ledger_done(pid, key):
+                continue
+            self.db.ledger_add(pid, key, "before", st.desc)
+            try:
+                detail = st.fn() if st.fn else ""
+            except Waiting as w:
+                self.db.ledger_add(pid, key, "waiting", str(w))
+                waiting = str(w)
+                break
+            except Exception as e:  # noqa: BLE001
+                self.db.ledger_add(pid, key, "error", str(e))
+                self.db.x("update proposals set status='failed' where id=?", (pid,))
+                raise
+            self.db.ledger_add(pid, key, "after", detail or "")
+            done.append(key)
+        else:
+            self.after_phase(self.fresh(pid), plan)
+        return {"dry_run": False, "basis": basis, "phase": plan.phase, "done": done, "waiting": waiting}
+
+    def fresh(self, pid: str) -> dict:
+        from .. import proposals
+        return proposals.get(self.db, pid)
+
+    # helpers --------------------------------------------------------------------------
+    def identity_args(self) -> list[str]:
+        i = self.cfg["git_identity"]
+        return ["-c", f"user.name={i['name']}", "-c", f"user.email={i['email']}"]
+
+    def g(self, argv: list[str], cwd=None, **kw):
+        """Guarded git (refuses force pushes, branch deletion)."""
+        return git([*argv], cwd=cwd, **kw)
+
+    def auth(self, url: str) -> list[str]:
+        from ..collect.mirror import CRED_HELPER
+        return ["-c", "credential.helper=", "-c", f"credential.helper={CRED_HELPER}"] if url.startswith("https://") else []
+
+    def clone(self, url: str, dest, mirror_of: bool = False) -> None:
+        from pathlib import Path
+        if (Path(dest) / ".git").exists():
+            return
+        Path(dest).parent.mkdir(parents=True, exist_ok=True)
+        self.g([*self.auth(url), "clone", "--quiet", "--no-local", url, str(dest)])
+
+    def commit(self, cwd, msg: str) -> None:
+        """Commit with the configured identity. No AI trailers unless the config asks for them."""
+        if self.cfg.get("ai_attribution"):
+            msg += "\n\nCo-Authored-By: AI assistant <noreply@example.com>"
+        self.g([*self.identity_args(), "commit", "-q", "-m", msg], cwd=cwd)
+
+    def default_branch(self, repo: str) -> str:
+        from ..collect.snapshot import latest_snapshots
+        snaps, _ = latest_snapshots(self.db)
+        return (snaps.get(repo) or {}).get("default_branch") or self.cfg["policy"]["default_branch"]
+
+    def set_phase(self, pid: str, phase: str, **extra) -> None:
+        self.db.set_state(pid, phase=phase, **extra)
+
+    def ledger_json(self, pid: str, key: str) -> dict:
+        d = self.db.ledger_detail(pid, key)
+        try:
+            return json.loads(d) if d else {}
+        except ValueError:
+            return {}
+
+    def pr_merged(self, repo: str, number: int) -> bool:
+        pr = self.gh.rest("GET", f"/repos/{self.cfg.org}/{repo}/pulls/{number}")
+        return bool(pr.get("merged"))
+
+    def open_pr(self, repo: str, head: str, base: str, title: str, body: str) -> int:
+        pr = self.gh.rest("POST", f"/repos/{self.cfg.org}/{repo}/pulls",
+                          {"title": title, "head": head, "base": base, "body": body})
+        return int(pr["number"])
+
+    def safe_push(self, argv_tail: list[str], cwd, default_branch: str | None, allow_default: bool = False) -> None:
+        """Push without force. Feature branches only, unless the destination is a brand new empty repo."""
+        full = ["push", *argv_tail]
+        refs = [a for a in argv_tail if not a.startswith("-")]
+        for r in refs[1:]:
+            dest = r.split(":")[-1].replace("refs/heads/", "")
+            if default_branch and dest == default_branch and not allow_default:
+                raise SafetyError(f"refusing to push to default branch {default_branch}")
+        self.g(full, cwd=cwd)
