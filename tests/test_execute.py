@@ -293,6 +293,64 @@ def test_split_refuses_non_empty_target(ctx, world):
     assert subjects(world, "mono-engine", "main") == ["pre"]
 
 
+def test_split_refuses_existing_public_repo_for_private_split(ctx, world):
+    sh("git", "init", "-q", "--bare", "-b", "main", str(world / "mono-engine.git"))   # someone pre-created it, public
+    p = prep(ctx, "split", {**SPLIT, "private": True})
+    with pytest.raises(SafetyError, match="is public, but the split is private"):
+        executor_for(ctx, "split").apply(p, dry_run=False)
+    assert not branches(world, "mono-engine")                                    # nothing pushed
+    assert not ctx.gh.writes_to("POST", "/orgs/acme/repos")
+    assert not ctx.db.ledger_done(p["id"], "create.create-repo")
+
+
+def test_split_uses_existing_empty_repo_of_the_same_visibility(ctx, world):
+    sh("git", "init", "-q", "--bare", "-b", "main", str(world / "mono-engine.git"))   # pre-created, public, empty
+    p = prep(ctx, "split", SPLIT)                                                # a public split
+    executor_for(ctx, "split").apply(p, dry_run=False)
+    assert not ctx.gh.writes_to("POST", "/orgs/acme/repos")
+    assert ctx.db.ledger_detail(p["id"], "create.create-repo") == "exists (empty, visibility matches)"
+    assert subjects(world, "mono-engine", "main") == [f"engine {i}" for i in (4, 3, 2, 1, 0)]
+
+
+def _crash_after_create(ctx):
+    """Make the next run die right after create_repo succeeded, before the step is recorded as done."""
+    real = ctx.db.ledger_add
+
+    def add(pid, step, phase, detail=""):
+        if step == "create.create-repo" and phase == "after":
+            raise KeyboardInterrupt("killed after creating the repo")
+        return real(pid, step, phase, detail)
+    ctx.db.ledger_add = add
+    return real
+
+
+def test_split_resumes_into_repo_it_created_on_an_earlier_run(ctx, world):
+    p = prep(ctx, "split", {**SPLIT, "private": True})
+    ex = executor_for(ctx, "split")
+    real = _crash_after_create(ctx)
+    with pytest.raises(KeyboardInterrupt):
+        ex.apply(p, dry_run=False)
+    ctx.db.ledger_add = real
+    assert (world / "mono-engine.git").exists() and not branches(world, "mono-engine")
+    ex.apply(proposals.get(ctx.db, p["id"]), dry_run=False)                      # next run: the repo already exists
+    assert len(ctx.gh.writes_to("POST", "/orgs/acme/repos")) == 1
+    assert ctx.db.ledger_detail(p["id"], "create.create-repo") == "exists (created by this proposal on an earlier run)"
+    assert subjects(world, "mono-engine", "main") == [f"engine {i}" for i in (4, 3, 2, 1, 0)]
+
+
+def test_split_resume_still_refuses_if_created_repo_was_made_public(ctx, world):
+    p = prep(ctx, "split", {**SPLIT, "private": True})
+    ex = executor_for(ctx, "split")
+    real = _crash_after_create(ctx)
+    with pytest.raises(KeyboardInterrupt):
+        ex.apply(p, dry_run=False)
+    ctx.db.ledger_add = real
+    ctx.gh.private["mono-engine"] = False                                        # flipped to public between runs
+    with pytest.raises(SafetyError, match="is public"):
+        ex.apply(proposals.get(ctx.db, p["id"]), dry_run=False)
+    assert not branches(world, "mono-engine")
+
+
 def test_split_pointer_refuses_until_verified(ctx):
     p = prep(ctx, "split", SPLIT)
     ctx.db.set_state(p["id"], phase="pointer")
