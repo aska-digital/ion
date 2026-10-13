@@ -173,6 +173,35 @@ def test_visibility_conflict_flagged_in_template():
     assert "visibility decision" in t["title"] and "VISIBILITY" in t["risks"][0]
 
 
+def test_template_text_refreshes_until_someone_approves(ctx):
+    from helpers import approve
+    analysed(ctx)
+    run_propose(ctx)
+    p = proposals.view(ctx.db.one("select * from proposals where kind='policy_fix'"))
+    stale = {**p["text"], "risks": ["STALE WORDING"], "source": "template"}
+    ctx.db.set_state(p["id"], text=stale)
+    run_collect(ctx); run_analyze(ctx); run_propose(ctx)
+    p = proposals.get(ctx.db, p["id"])
+    assert p["text"]["risks"] != ["STALE WORDING"]          # unapproved: wording follows the template
+    ctx.db.set_state(p["id"], text=stale)
+    approve(ctx, p)
+    run_collect(ctx); run_analyze(ctx); run_propose(ctx)
+    p = proposals.get(ctx.db, p["id"])
+    assert p["text"]["risks"] == ["STALE WORDING"]          # approved: what was shown stays shown
+
+
+def test_policy_fix_risks_match_the_policy_class():
+    def cand(cls):
+        return {"kind": "policy_fix", "subject": {"class": cls, "repo": "r"}, "score": 1.0,
+                "evidence": {"detail": "drift"}}
+    bp = synth.template(cand("branch_protection"), [])["risks"]
+    assert any("direct pushes" in r for r in bp)
+    for cls, needle in (("dependabot_alerts", "alert"), ("secret_scanning", "secret")):
+        risks = synth.template(cand(cls), [])["risks"]
+        assert any(needle in r.lower() for r in risks), (cls, risks)
+        assert not any("direct pushes" in r for r in risks), (cls, risks)
+
+
 def test_llm_drop_creates_no_issue(ctx):
     analysed(ctx)
     ctx.llm = StubLLM(good(recommend="drop"))
