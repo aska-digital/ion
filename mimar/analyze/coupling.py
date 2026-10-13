@@ -232,9 +232,14 @@ def prefix_signal(a: str, b: str) -> float:
 
 
 def combine(signals: dict[str, float]) -> float:
+    """Noisy-or of weighted signals. Co-change alone is half-weighted: one author working on several repos on the
+    same days is weak evidence unless a content signal (xref, duplication, shared deps) agrees."""
+    sig = dict(signals)
+    if max(sig.get("xref", 0), sig.get("dup", 0), sig.get("deps", 0)) < 0.3:
+        sig["cochange"] = sig.get("cochange", 0) * 0.5
     p = 1.0
     for k, w in WEIGHTS.items():
-        p *= 1 - w * max(0.0, min(1.0, signals.get(k, 0.0)))
+        p *= 1 - w * max(0.0, min(1.0, sig.get(k, 0.0)))
     return round(1 - p, 4)
 
 

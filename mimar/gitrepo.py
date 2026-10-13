@@ -58,7 +58,7 @@ class GitRepo:
     def read_blobs(self, shas: list[str], max_bytes: int = 200_000) -> dict[str, str]:
         if not shas:
             return {}
-        p = subprocess.run(["git", "-C", self.path, "cat-file", "--batch"], input="\n".join(shas) + "\n",
+        p = subprocess.run(["git", "-C", self.path, "cat-file", "--batch"], input=("\n".join(shas) + "\n").encode(),
                            capture_output=True)
         data, out, i = p.stdout, {}, 0
         for sha in shas:

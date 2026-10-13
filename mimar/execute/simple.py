@@ -5,8 +5,7 @@ from pathlib import Path
 
 from .. import proposals
 from ..util import SafetyError
-from .base import Executor, Plan, Step
-from .split import filter_args
+from .base import Executor, Plan, Step, filter_args
 
 
 def protection_body(settings: dict) -> dict:

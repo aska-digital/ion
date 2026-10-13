@@ -180,3 +180,12 @@ class Executor:
             if default_branch and dest == default_branch and not allow_default:
                 raise SafetyError(f"refusing to push to default branch {default_branch}")
         self.g(full, cwd=cwd)
+
+
+def filter_args(dirs: list[str]) -> list[str]:
+    if len(dirs) == 1:
+        return ["--subdirectory-filter", dirs[0]]
+    args = []
+    for d in dirs:
+        args += ["--path", d + "/"]
+    return args

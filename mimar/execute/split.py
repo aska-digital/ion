@@ -5,17 +5,8 @@ from pathlib import Path
 
 from .. import proposals
 from ..util import Refused, SafetyError, filter_repo_path
-from .base import Executor, Plan, Step
+from .base import Executor, Plan, Step, filter_args
 from .simple import apply_policy_fix
-
-
-def filter_args(dirs: list[str]) -> list[str]:
-    if len(dirs) == 1:
-        return ["--subdirectory-filter", dirs[0]]
-    args = []
-    for d in dirs:
-        args += ["--path", d + "/"]
-    return args
 
 
 class SplitExecutor(Executor):

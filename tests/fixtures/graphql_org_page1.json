@@ -1,0 +1,421 @@
+{
+ "data": {
+  "rateLimit": {
+   "cost": 1,
+   "remaining": 4990,
+   "resetAt": "2026-10-13T12:00:00Z"
+  },
+  "organization": {
+   "repositories": {
+    "pageInfo": {
+     "hasNextPage": true,
+     "endCursor": "c1"
+    },
+    "nodes": [
+     {
+      "name": "alpha-core",
+      "url": "https://github.com/acme/alpha-core",
+      "description": "a repo",
+      "isPrivate": false,
+      "isFork": false,
+      "isArchived": false,
+      "isEmpty": false,
+      "diskUsage": 100,
+      "pushedAt": "2026-10-10T10:00:00Z",
+      "createdAt": "2025-01-01T00:00:00Z",
+      "hasVulnerabilityAlertsEnabled": true,
+      "licenseInfo": {
+       "spdxId": "MIT"
+      },
+      "defaultBranchRef": {
+       "name": "main",
+       "target": {
+        "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "history": {
+         "nodes": [
+          {
+           "oid": "0000000000000000000000000000000000000001",
+           "committedDate": "2026-09-02T10:00:00Z",
+           "changedFilesIfAvailable": 3,
+           "author": {
+            "name": "Dev One",
+            "email": "dev1@example.com",
+            "user": {
+             "login": "dev1"
+            }
+           }
+          },
+          {
+           "oid": "0000000000000000000000000000000000000002",
+           "committedDate": "2026-09-03T10:00:00Z",
+           "changedFilesIfAvailable": 3,
+           "author": {
+            "name": "Dev One",
+            "email": "dev1@example.com",
+            "user": {
+             "login": "dev1"
+            }
+           }
+          },
+          {
+           "oid": "0000000000000000000000000000000000000003",
+           "committedDate": "2026-09-04T10:00:00Z",
+           "changedFilesIfAvailable": 3,
+           "author": {
+            "name": "Dev One",
+            "email": "dev1@example.com",
+            "user": {
+             "login": "dev1"
+            }
+           }
+          },
+          {
+           "oid": "0000000000000000000000000000000000000004",
+           "committedDate": "2026-09-05T10:00:00Z",
+           "changedFilesIfAvailable": 3,
+           "author": {
+            "name": "Dev One",
+            "email": "dev1@example.com",
+            "user": {
+             "login": "dev1"
+            }
+           }
+          },
+          {
+           "oid": "0000000000000000000000000000000000000005",
+           "committedDate": "2026-09-06T10:00:00Z",
+           "changedFilesIfAvailable": 3,
+           "author": {
+            "name": "Dev One",
+            "email": "dev1@example.com",
+            "user": {
+             "login": "dev1"
+            }
+           }
+          }
+         ]
+        }
+       }
+      },
+      "languages": {
+       "edges": [
+        {
+         "size": 1000,
+         "node": {
+          "name": "Python"
+         }
+        }
+       ]
+      },
+      "repositoryTopics": {
+       "nodes": []
+      },
+      "issues": {
+       "totalCount": 2
+      },
+      "pullRequests": {
+       "totalCount": 1
+      },
+      "oldestPR": {
+       "nodes": [
+        {
+         "number": 3,
+         "createdAt": "2026-09-01T00:00:00Z"
+        }
+       ]
+      },
+      "vulnerabilityAlerts": {
+       "totalCount": 0
+      },
+      "branchProtectionRules": {
+       "nodes": []
+      },
+      "collaborators": {
+       "nodes": [
+        {
+         "login": "ahrazzle"
+        }
+       ]
+      },
+      "mimarYml": null,
+      "parent": null
+     },
+     {
+      "name": "alpha-cli",
+      "url": "https://github.com/acme/alpha-cli",
+      "description": "a repo",
+      "isPrivate": false,
+      "isFork": false,
+      "isArchived": false,
+      "isEmpty": false,
+      "diskUsage": 100,
+      "pushedAt": "2026-10-10T10:00:00Z",
+      "createdAt": "2025-01-01T00:00:00Z",
+      "hasVulnerabilityAlertsEnabled": true,
+      "licenseInfo": {
+       "spdxId": "MIT"
+      },
+      "defaultBranchRef": {
+       "name": "main",
+       "target": {
+        "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "history": {
+         "nodes": [
+          {
+           "oid": "0000000000000000000000000000000000000001",
+           "committedDate": "2026-09-02T10:00:00Z",
+           "changedFilesIfAvailable": 3,
+           "author": {
+            "name": "Dev One",
+            "email": "dev1@example.com",
+            "user": {
+             "login": "dev1"
+            }
+           }
+          },
+          {
+           "oid": "0000000000000000000000000000000000000002",
+           "committedDate": "2026-09-03T10:00:00Z",
+           "changedFilesIfAvailable": 3,
+           "author": {
+            "name": "Dev One",
+            "email": "dev1@example.com",
+            "user": {
+             "login": "dev1"
+            }
+           }
+          },
+          {
+           "oid": "0000000000000000000000000000000000000003",
+           "committedDate": "2026-09-04T10:00:00Z",
+           "changedFilesIfAvailable": 3,
+           "author": {
+            "name": "Dev One",
+            "email": "dev1@example.com",
+            "user": {
+             "login": "dev1"
+            }
+           }
+          },
+          {
+           "oid": "0000000000000000000000000000000000000004",
+           "committedDate": "2026-09-05T10:00:00Z",
+           "changedFilesIfAvailable": 3,
+           "author": {
+            "name": "Dev One",
+            "email": "dev1@example.com",
+            "user": {
+             "login": "dev1"
+            }
+           }
+          },
+          {
+           "oid": "0000000000000000000000000000000000000005",
+           "committedDate": "2026-09-06T10:00:00Z",
+           "changedFilesIfAvailable": 3,
+           "author": {
+            "name": "Dev One",
+            "email": "dev1@example.com",
+            "user": {
+             "login": "dev1"
+            }
+           }
+          }
+         ]
+        }
+       }
+      },
+      "languages": {
+       "edges": [
+        {
+         "size": 1000,
+         "node": {
+          "name": "Python"
+         }
+        }
+       ]
+      },
+      "repositoryTopics": {
+       "nodes": []
+      },
+      "issues": {
+       "totalCount": 2
+      },
+      "pullRequests": {
+       "totalCount": 1
+      },
+      "oldestPR": {
+       "nodes": [
+        {
+         "number": 3,
+         "createdAt": "2026-09-01T00:00:00Z"
+        }
+       ]
+      },
+      "vulnerabilityAlerts": {
+       "totalCount": 0
+      },
+      "branchProtectionRules": {
+       "nodes": [
+        {
+         "pattern": "main",
+         "requiresApprovingReviews": true,
+         "requiredApprovingReviewCount": 0,
+         "allowsForcePushes": false,
+         "allowsDeletions": false,
+         "isAdminEnforced": false
+        }
+       ]
+      },
+      "collaborators": {
+       "nodes": [
+        {
+         "login": "ahrazzle"
+        }
+       ]
+      },
+      "mimarYml": null,
+      "parent": null
+     },
+     {
+      "name": "mono",
+      "url": "https://github.com/acme/mono",
+      "description": "a repo",
+      "isPrivate": false,
+      "isFork": false,
+      "isArchived": false,
+      "isEmpty": false,
+      "diskUsage": 100,
+      "pushedAt": "2026-10-10T10:00:00Z",
+      "createdAt": "2025-01-01T00:00:00Z",
+      "hasVulnerabilityAlertsEnabled": true,
+      "licenseInfo": {
+       "spdxId": "MIT"
+      },
+      "defaultBranchRef": {
+       "name": "main",
+       "target": {
+        "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "history": {
+         "nodes": [
+          {
+           "oid": "0000000000000000000000000000000000000001",
+           "committedDate": "2026-09-02T10:00:00Z",
+           "changedFilesIfAvailable": 3,
+           "author": {
+            "name": "Dev One",
+            "email": "dev1@example.com",
+            "user": {
+             "login": "dev1"
+            }
+           }
+          },
+          {
+           "oid": "0000000000000000000000000000000000000002",
+           "committedDate": "2026-09-03T10:00:00Z",
+           "changedFilesIfAvailable": 3,
+           "author": {
+            "name": "Dev One",
+            "email": "dev1@example.com",
+            "user": {
+             "login": "dev1"
+            }
+           }
+          },
+          {
+           "oid": "0000000000000000000000000000000000000003",
+           "committedDate": "2026-09-04T10:00:00Z",
+           "changedFilesIfAvailable": 3,
+           "author": {
+            "name": "Dev One",
+            "email": "dev1@example.com",
+            "user": {
+             "login": "dev1"
+            }
+           }
+          },
+          {
+           "oid": "0000000000000000000000000000000000000004",
+           "committedDate": "2026-09-05T10:00:00Z",
+           "changedFilesIfAvailable": 3,
+           "author": {
+            "name": "Dev One",
+            "email": "dev1@example.com",
+            "user": {
+             "login": "dev1"
+            }
+           }
+          },
+          {
+           "oid": "0000000000000000000000000000000000000005",
+           "committedDate": "2026-09-06T10:00:00Z",
+           "changedFilesIfAvailable": 3,
+           "author": {
+            "name": "Dev One",
+            "email": "dev1@example.com",
+            "user": {
+             "login": "dev1"
+            }
+           }
+          }
+         ]
+        }
+       }
+      },
+      "languages": {
+       "edges": [
+        {
+         "size": 1000,
+         "node": {
+          "name": "Python"
+         }
+        }
+       ]
+      },
+      "repositoryTopics": {
+       "nodes": []
+      },
+      "issues": {
+       "totalCount": 2
+      },
+      "pullRequests": {
+       "totalCount": 1
+      },
+      "oldestPR": {
+       "nodes": [
+        {
+         "number": 3,
+         "createdAt": "2026-09-01T00:00:00Z"
+        }
+       ]
+      },
+      "vulnerabilityAlerts": {
+       "totalCount": 0
+      },
+      "branchProtectionRules": {
+       "nodes": [
+        {
+         "pattern": "main",
+         "requiresApprovingReviews": true,
+         "requiredApprovingReviewCount": 0,
+         "allowsForcePushes": false,
+         "allowsDeletions": false,
+         "isAdminEnforced": false
+        }
+       ]
+      },
+      "collaborators": {
+       "nodes": [
+        {
+         "login": "ahrazzle"
+        }
+       ]
+      },
+      "mimarYml": null,
+      "parent": null
+     }
+    ]
+   }
+  }
+ }
+}
