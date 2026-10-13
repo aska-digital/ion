@@ -6,6 +6,7 @@ from pathlib import Path
 from .. import proposals
 from ..collect.mirror import mirror_path as _mp
 from ..util import Refused, SafetyError
+from ..writes import WriteRequest
 from .base import Executor, Plan, Step, Waiting
 
 
@@ -55,7 +56,7 @@ class MergeExecutor(Executor):
             return f"source tip {tip[:10]} is an ancestor; {n_src} source commits present"
 
         def push():
-            self.safe_push(["origin", f"{branch}:refs/heads/{branch}"], tdir, tgt_default)
+            self.safe_push(["origin", f"{branch}:refs/heads/{branch}"], tdir, tgt_default, repo=B)
 
         def pr():
             n = self.open_pr(B, branch, tgt_default, f"Merge {A} into {B} [{pid}]",
@@ -119,7 +120,7 @@ class MergeExecutor(Executor):
             Step("clone-source", f"clone {A}", ["git", "clone", url, str(pdir)], lambda: self.clone(url, pdir)),
             Step("edit-readme", "replace README with a pointer", None, edit),
             Step("push", f"push {branch}", ["git", "push", "origin", f"{branch}:refs/heads/{branch}"],
-                 lambda: self.safe_push(["origin", f"{branch}:refs/heads/{branch}"], pdir, base)),
+                 lambda: self.safe_push(["origin", f"{branch}:refs/heads/{branch}"], pdir, base, repo=A)),
             Step("open-pr", f"open the pointer PR in {A}", None, pr)])
 
     def _await_pointer(self, p, s) -> Plan:
@@ -138,7 +139,7 @@ class MergeExecutor(Executor):
                 from ..propose.engine import create_followup
                 np_ = create_followup(self.ctx, p, "archive", {"repo": A, "reason": f"merged into {s['target']} ({p['id']})"})
                 return f"created {np_['id']}, awaiting its own approval"
-            self.gh.rest("PATCH", f"/repos/{self.cfg.org}/{A}", {"archived": True})
+            self.ctx.writes.submit(WriteRequest("archive_repo", A))
             return "archived"
         return Plan(p["id"], "merge", "archive", [Step(
             "archive-source", f"archive {A}" + (" via a separate approved proposal" if self.cfg["archive_requires_second_approval"] else ""),

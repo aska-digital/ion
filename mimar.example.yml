@@ -30,7 +30,18 @@ policy:
   dependabot_alerts: true
   secret_scanning: public_only
   required_files: [README.md, LICENSE]
-auto_apply: []                # policy classes Mimar may fix without approval: branch_protection, dependabot_alerts, secret_scanning
+auto_apply: []                # legacy: classes Mimar may fix without approval (same as policy_actions: {<class>: fix})
+policy_actions: {}            # per policy class: log (record only) | issue (propose, needs approval) | fix (auto-apply)
+                              # classes: branch_protection, dependabot_alerts, secret_scanning, required_files
+policy_strategy: opt-out      # opt-out: all repos governed unless `enabled: false` in <repo>/.github/mimar.yml; opt-in: the reverse
+guards:                       # circuit breaker for one run
+  max_repo_fraction: 0.25     # stop if writes would touch more than this share of repos
+  max_archives: 2
+  forbid_protection_lowering: true
+# writes: {caps: {open_pr: 5, archive_repo: 1}}   # per-run caps by write type (these are the defaults)
+# boundaries:                 # tag-based architecture rules; tags are GitHub topics
+#   rules: [{from: "scope:app", allow: ["scope:app", "layer:shared"]}]
+# lifecycle: {dormant_days: 90, frozen: [some-repo]}   # stale -> dormant -> archive-proposed; topic mimar-frozen exempts
 thresholds:
   merge_coupling: 0.6
   split_cohesion_gap: 0.5

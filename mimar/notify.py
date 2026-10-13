@@ -66,7 +66,7 @@ class GithubIssueNotifier(Notifier):
         n = self.conf.get("number")
         if not n:
             raise RuntimeError("github_issue notifier needs `number`")
-        self.ctx.gh.rest("PATCH", f"{tracker.repo_path(self.ctx)}/issues/{n}", {"body": text})
+        self.ctx.writes.tracker("edit_issue_body", number=int(n), body=text)
 
 
 class WebhookNotifier(Notifier):

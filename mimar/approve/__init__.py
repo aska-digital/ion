@@ -46,6 +46,10 @@ def _apply_state(ctx, p: dict, res: dict) -> None:
         db.x("update proposals set state=?, epoch=?, status='awaiting-approval', updated=? where id=?",
              (json.dumps(st), iso(), iso(), p["id"]))
         res["changed"].append((p["id"], old, "expired"))
+        try:
+            labels.clear_decision_labels(ctx, p)
+        except Exception as e:  # noqa: BLE001
+            res["errors"].append(f"{p['id']}: {str(e)[:160]}")
     elif new != old:
         extra = ""
         if new == "rejected":

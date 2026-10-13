@@ -8,7 +8,7 @@ import sys
 
 from . import core
 
-MSG_RE = re.compile(r"^\s*mimar\s+(approve|reject|hold)\s+(P-\d{4,})\s*$", re.I | re.M)
+MSG_RE = re.compile(r"^\s*mimar\s+(approve|reject|hold)\s+(P-\d{4,})(?:\s+(?:plan-sha256:)?([0-9a-f]{8,64}))?\s*$", re.I | re.M)
 
 VERIFY_SNIPPET = r'''
 import hashlib, importlib.util, json, sys
@@ -83,17 +83,27 @@ def sync_bus(ctx) -> dict:
     for e in cands:
         res["seen"] += 1
         for m in MSG_RE.finditer(e["body"]):
-            action, pid = m.group(1).lower(), m.group(2).upper()
+            action, pid, stated = m.group(1).lower(), m.group(2).upper(), (m.group(3) or "").lower()
             p = proposals.get(db, pid)
             if not p:
                 continue
             sender = e.get("from", "")
             ok, reason = True, ""
+            bound = None
             if e["id"] not in vids:
                 ok, reason = False, "bus signature not verified"
+            elif sender == cfg["bus"].get("seat"):
+                ok, reason = False, "message from mimar's own seat"
             elif sender not in seats:
                 ok, reason = False, f"seat {sender} is not a maintainer seat"
-            if core.record(db, pid, "divan_bus", sender, action, e.get("ts", ""), str(e["id"]), ok, reason):
+            elif stated:
+                # the sender names the plan hash it approved: it must be one the issue displayed before the message
+                shown = [h for h in proposals.shown_before(p, e.get("ts", "")) if h.startswith(stated)]
+                if shown:
+                    bound = shown[-1]
+                else:
+                    ok, reason = False, f"plan hash {stated[:12]} was never displayed before this message"
+            if core.record(db, pid, "divan_bus", sender, action, e.get("ts", ""), str(e["id"]), ok, reason, bound):
                 res["recorded"] += 1
                 if not ok:
                     res["ignored"].append((pid, sender, reason))

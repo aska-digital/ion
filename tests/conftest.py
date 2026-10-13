@@ -162,6 +162,14 @@ class FakeGH:
                 self.issues[n]["labels"].append(l)
                 self.add_label_event(n, l, self.bot_login, ts="2099-01-01T00:00:01Z")
             return {}
+        if method == "DELETE" and "labels" in parts and "issues" in parts:
+            import urllib.parse
+            n = int(parts[4])
+            label = urllib.parse.unquote(parts[6])
+            if label in self.issues.get(n, {}).get("labels", []):
+                self.issues[n]["labels"].remove(label)
+            self.add_label_event(n, label, self.bot_login, ts="2100-01-01T00:00:00Z", event="unlabeled")
+            return {}
         if method == "PATCH" and len(parts) == 3 and body.get("archived"):
             self.archived.add(parts[2])
         return {}

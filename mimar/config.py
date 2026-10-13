@@ -21,7 +21,7 @@ DEFAULTS: dict = {
             "client": None, "python": None},
     "notifiers": [{"type": "stdout"}],
     "llm": {"backend": "none", "model_default": "haiku", "model_structural": "sonnet", "max_calls_per_run": 20,
-            "timeout_s": 180, "api_models": {"haiku": "claude-haiku-4-5", "sonnet": "claude-sonnet-4-5"}},
+            "timeout_s": 180, "api_models": {"haiku": "claude-haiku-5-5", "sonnet": "claude-sonnet-5-5"}},
     "budget": {"graphql_points_per_run": 500},
     "collect": {"commits": 30, "page_size": 10},
     "policy": {
@@ -32,7 +32,14 @@ DEFAULTS: dict = {
         "secret_scanning": "public_only",
         "required_files": ["README.md", "LICENSE"],
     },
-    "auto_apply": [],
+    "auto_apply": [],             # legacy spelling of `policy_actions: {<class>: fix}`
+    "policy_actions": {},         # class -> log | issue | fix. Unlisted classes: fix if in auto_apply, else issue
+    "policy_strategy": "opt-out",  # opt-out: every repo is governed unless it opts out; opt-in: only repos that opt in
+    "policy_repos": [],           # opt-in strategy: repos governed without needing their own .github/mimar.yml
+    "coupling": {"max_changeset_size": 40, "min_revs": 5, "min_shared_revs": 3, "prefix_weight": 0.05,
+                 "bot_authors": ["dependabot", "renovate", "github-actions", "[bot]", "pre-commit-ci"]},
+    "lifecycle": {"dormant_days": 90, "frozen": [], "frozen_topic": "mimar-frozen"},
+    "boundaries": {"rules": [], "scope_prefix": "scope:", "block_cross_scope_merge": True},
     "thresholds": {"merge_coupling": 0.6, "split_cohesion_gap": 0.5, "stale_days": 180, "persist_runs": 2,
                    "cooldown_days": 60, "rescore_delta": 0.15, "archive_score": 0.7, "stale_pr_days": 30,
                    "vuln_alerts": 5, "min_cluster_files": 8, "min_cluster_share": 0.15, "dup_min_bytes": 200},
@@ -45,6 +52,9 @@ DEFAULTS: dict = {
     "ai_attribution": False,
     "license_template": None,
     "report": {"org_health_issue": False},
+    "writes": {"caps": {}},
+    "guards": {"enabled": True, "max_repo_fraction": 0.25, "min_repos": 4, "max_archives": 2, "max_writes": 150,
+               "forbid_protection_lowering": True},
 }
 
 _STR_LIST = {"type": "array", "items": {"type": "string"}}
@@ -52,7 +62,7 @@ SCHEMA = {
     "type": "object",
     "properties": {
         "org": {"type": ["string", "null"]}, "paused": {"type": "boolean"}, "maintainers": _STR_LIST,
-        "approval_sources": {"type": "array", "items": {"enum": ["github_label", "divan_bus"]}},
+        "approval_sources": {"type": "array", "items": {"enum": ["github_label", "divan_bus", "dashboard"]}},
         "notifiers": {"type": "array", "items": {"type": "object", "required": ["type"],
                       "properties": {"type": {"enum": ["stdout", "file", "divan_bus", "github_issue", "webhook"]}}}},
         "bus": {"type": "object", "properties": {"url": {"type": "string"}, "seat": {"type": "string"},
@@ -64,6 +74,22 @@ SCHEMA = {
         "policy": {"type": "object"},
         "auto_apply": {"type": "array", "items": {"enum": ["branch_protection", "dependabot_alerts", "secret_scanning",
                                                            "health_fix"]}},
+        "policy_actions": {"type": "object", "additionalProperties": {"enum": ["log", "issue", "fix"]},
+                           "propertyNames": {"enum": ["branch_protection", "dependabot_alerts", "secret_scanning", "required_files"]}},
+        "policy_strategy": {"enum": ["opt-in", "opt-out"]},
+        "policy_repos": _STR_LIST,
+        "coupling": {"type": "object"},
+        "lifecycle": {"type": "object", "properties": {"dormant_days": {"type": "integer", "minimum": 1},
+                                                       "frozen": _STR_LIST, "frozen_topic": {"type": "string"}}},
+        "boundaries": {"type": "object", "properties": {
+            "rules": {"type": "array", "items": {"type": "object", "required": ["from", "allow"], "properties": {
+                "from": {"type": "string"}, "allow": _STR_LIST}}},
+            "scope_prefix": {"type": "string"}, "block_cross_scope_merge": {"type": "boolean"}}},
+        "writes": {"type": "object", "properties": {"caps": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}}}},
+        "guards": {"type": "object", "properties": {
+            "enabled": {"type": "boolean"}, "max_repo_fraction": {"type": "number", "minimum": 0, "maximum": 1},
+            "min_repos": {"type": "integer", "minimum": 1}, "max_archives": {"type": "integer", "minimum": 0},
+            "max_writes": {"type": "integer", "minimum": 1}, "forbid_protection_lowering": {"type": "boolean"}}},
         "thresholds": {"type": "object", "additionalProperties": {"type": "number"}},
         "approval_ttl_days": {"type": "integer", "minimum": 1},
         "quorum": {"type": "integer", "minimum": 1},
@@ -76,7 +102,8 @@ SCHEMA = {
 REPO_OVERRIDE_SCHEMA = {
     "type": "object",
     "properties": {"maintainers": _STR_LIST, "ignore": {"type": "boolean"}, "policy": {"type": "object"},
-                   "exclude_paths": _STR_LIST},
+                   "exclude_paths": _STR_LIST, "enabled": {"type": "boolean"},
+                   "policy_actions": {"type": "object", "additionalProperties": {"enum": ["log", "issue", "fix"]}}},
     "additionalProperties": False,
 }
 

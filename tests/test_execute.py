@@ -99,7 +99,7 @@ def test_policy_fix_is_idempotent_calls(ctx):
     ex.apply(p, dry_run=False)
     assert len(ctx.gh.writes_to("PUT", "/vulnerability-alerts")) == 1
     from mimar.execute.simple import apply_policy_fix
-    apply_policy_fix(ctx.gh, "acme", p["subject"])                         # re-applying is a plain PUT, safe to repeat
+    apply_policy_fix(ctx, p["subject"])                         # re-applying is a plain PUT, safe to repeat
     assert len(ctx.gh.writes_to("PUT", "/vulnerability-alerts")) == 2
 
 

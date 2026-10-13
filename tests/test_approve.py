@@ -83,6 +83,7 @@ def test_quorum_needs_two_distinct_maintainers(tmp_path, home, world):
 
 def test_approval_expires_after_ttl(ctx):
     p = setup(ctx)
+    ctx.db.set_state(p["id"], hash_log=[["2026-09-01T00:00:00Z", p["plan_hash"]]])      # the plan was shown back then
     ctx.gh.add_label_event(p["issue_number"], "mimar:approved", "maint", ts="2026-09-20T00:00:00Z")
     ctx.db.x("update proposals set epoch='2026-09-01T00:00:00Z' where id=?", (p["id"],))
     r = sync_approvals(ctx)

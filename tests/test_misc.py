@@ -19,8 +19,10 @@ def test_shipped_configs_validate():
     here = os.path.dirname(os.path.dirname(__file__))
     ours = load_config(os.path.join(here, "config", "aska-digital.yml"))
     assert ours["org"] == "aska-digital" and ours["thresholds"]["merge_coupling"] == 0.6
-    assert ours["bus"]["maintainer_seats"] == ["saga-divan"] and ours["exclude"] == ["hermes-agent"]
-    assert ours["auto_apply"] == ["branch_protection", "dependabot_alerts", "secret_scanning"]
+    assert ours["bus"]["maintainer_seats"] == ["saga-divan"] and ours["exclude"] == ["hermes-agent", "protean-team", "docu-sort"]
+    assert ours["policy_actions"] == {"branch_protection": "fix", "dependabot_alerts": "fix", "secret_scanning": "fix",
+                                      "required_files": "issue"}
+    assert ours["bus"]["url"] == "http://100.95.188.96:8787" and ours["tracker_repo"] == "mimar-tracker"
     ex = load_config(os.path.join(here, "mimar.example.yml"))
     assert ex["org"] == "your-org" and ex["auto_apply"] == []
 

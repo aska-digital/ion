@@ -11,6 +11,34 @@ def effective_policy(cfg, override: dict | None) -> dict:
     return deep_merge(cfg["policy"], (override or {}).get("policy") or {})
 
 
+LEGACY_ALLOW = {"required_files": "health_fix"}   # spelling in the old `auto_apply` list
+
+
+def policy_key(cls: str) -> str:
+    """`required_file:README.md` -> `required_files`; other classes are their own key."""
+    return "required_files" if cls.startswith("required_file:") or cls == "health_fix" else cls
+
+
+def governed(cfg, override: dict | None, repo: str) -> bool:
+    """Is this repo under policy? opt-out: yes unless it says `enabled: false`. opt-in: only if it says `enabled: true`
+    (or the config lists it in `policy_repos`) and has not turned itself off."""
+    enabled = (override or {}).get("enabled")
+    if cfg["policy_strategy"] == "opt-in":
+        return enabled is True or (enabled is not False and repo in cfg["policy_repos"])
+    return enabled is not False
+
+
+def action_for(cfg, override: dict | None, cls: str) -> str:
+    """log | issue | fix for a policy class. A repo's own `policy_actions` win over the org config; classes the org
+    config does not mention are `fix` if the legacy `auto_apply` list names them, else `issue`."""
+    key = policy_key(cls)
+    for table in ((override or {}).get("policy_actions") or {}, cfg["policy_actions"]):
+        if key in table:
+            return table[key]
+    legacy = {key, LEGACY_ALLOW.get(key)} & set(cfg["auto_apply"])
+    return "fix" if legacy else "issue"
+
+
 def _rule_for(snap: dict) -> dict | None:
     for r in snap.get("protection") or []:
         if fnmatch.fnmatch(snap.get("default_branch") or "", r.get("pattern") or ""):
@@ -23,12 +51,13 @@ def check(snap: dict, files: set[str] | None, cfg, override: dict | None = None)
     pol = effective_policy(cfg, override)
     out: list[dict] = []
     repo, private = snap["name"], snap.get("private")
-    if snap.get("archived") or snap.get("empty"):
+    if snap.get("archived") or snap.get("empty") or not governed(cfg, override, repo):
         return out
     free = cfg.get("plan", "free") == "free"
 
     def add(cls, status, detail, fix=None):
-        out.append({"repo": repo, "class": cls, "status": status, "detail": detail, "fix": fix})
+        out.append({"repo": repo, "class": cls, "status": status, "detail": detail, "fix": fix,
+                    "action": action_for(cfg, override, cls)})
 
     # branch protection
     bp = pol.get("branch_protection")

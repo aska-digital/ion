@@ -22,6 +22,10 @@ class Refused(RuntimeError):
     """Raised when an executor refuses to apply (no approval, kill switch, ...)."""
 
 
+class Waiting(Exception):
+    """A step that cannot proceed yet (PR not merged, per-run cap reached). Not an error; retried on a later run."""
+
+
 def home() -> Path:
     p = Path(os.environ.get("MIMAR_HOME", "~/.mimar")).expanduser()
     p.mkdir(parents=True, exist_ok=True)

@@ -25,10 +25,36 @@ def replay(events: list[dict]) -> dict[str, dict]:
     return state
 
 
+def own_login(ctx) -> str | None:
+    """The GitHub login Mimar writes as (cached). None if it cannot be read."""
+    if ctx._own_login is None:
+        try:
+            ctx._own_login = ((ctx.gh.rest("GET", "/user") or {}).get("login") or "").lower()
+        except Exception:  # noqa: BLE001
+            ctx._own_login = ""
+    return ctx._own_login or None
+
+
+def authorised(ctx, actor: str, maint: set[str]) -> tuple[bool, str]:
+    """May this GitHub actor's decision label count? Maintainers only, and never Mimar's own identity.
+
+    In phase 1 Mimar runs on a maintainer's own token, so its login can coincide with a maintainer. Then the login
+    cannot be told apart from Mimar's, and Mimar's own label events are recognised by id instead (`mirrored_labels`)."""
+    if actor not in maint:
+        return False, f"label added by {actor or 'unknown'}, who is not a maintainer"
+    own = own_login(ctx)
+    if own and actor == own and own not in maint:
+        return False, "label added by mimar's own identity"
+    return True, ""
+
+
 def sync_labels(ctx, p: dict) -> dict:
-    """Record label approvals for one proposal. Returns counters."""
+    """Record label approvals for one proposal. Returns counters.
+
+    A decision label put on by anyone who is not a maintainer is recorded as ignored and taken off again (one API
+    call, no comment), so the issue never shows an approval that does not count."""
     n = p.get("issue_number")
-    out = {"recorded": 0, "ignored": []}
+    out = {"recorded": 0, "ignored": [], "removed": []}
     if not n:
         return out
     events = ctx.gh.paginate(f"{tracker.repo_path(ctx)}/issues/{n}/timeline")
@@ -41,18 +67,40 @@ def sync_labels(ctx, p: dict) -> dict:
             actor = ((e.get("actor") or {}).get("login") or "").lower()
             if eid in mirrored:
                 continue                                  # applied by mimar itself, counted via its bus source
-            ok = actor in maint
-            reason = "" if ok else f"label added by {actor or 'unknown'}, who is not a maintainer"
+            ok, reason = authorised(ctx, actor, maint)
             if core.record(ctx.db, p["id"], "github_label", actor, action, e.get("created_at") or "", eid, ok, reason):
                 out["recorded"] += 1
                 if not ok:
                     out["ignored"].append((label, actor))
+        if st["present"] and st["labeled"]:
+            last = st["labeled"][-1]
+            lactor = ((last.get("actor") or {}).get("login") or "").lower()
+            if str(last.get("id")) not in mirrored and not authorised(ctx, lactor, maint)[0]:
+                try:
+                    ctx.writes.tracker("remove_label", number=int(n), label=label)
+                    out["removed"].append((label, lactor))
+                except Exception as e:  # noqa: BLE001
+                    out.setdefault("errors", []).append(str(e)[:120])
         if not st["present"]:
             ids = [str(e.get("id")) for e in st["labeled"]]
             for i in ids:
-                ctx.db.x("update approvals set valid=0, reason='label removed' where proposal=? and ref=? and source='github_label'",
-                         (p["id"], i))
+                ctx.db.x("update approvals set valid=0, reason='label removed' where proposal=? and ref=? and source='github_label'"
+                         " and valid=1 and reason=''", (p["id"], i))
     return out
+
+
+def clear_decision_labels(ctx, p: dict, labels: tuple[str, ...] = ("mimar:approved", "mimar:hold")) -> list[str]:
+    """Take decision labels off the issue (after a re-plan or an expiry). One call per label that is present."""
+    n = p.get("issue_number")
+    if not n or ctx.cfg.is_paused():
+        return []
+    present = replay(ctx.gh.paginate(f"{tracker.repo_path(ctx)}/issues/{n}/timeline"))
+    done = []
+    for label in labels:
+        if present.get(label, {}).get("present"):
+            ctx.writes.tracker("remove_label", number=int(n), label=label)
+            done.append(label)
+    return done
 
 
 def mirror_label(ctx, p: dict, action: str) -> None:
@@ -61,7 +109,7 @@ def mirror_label(ctx, p: dict, action: str) -> None:
     n = p.get("issue_number")
     if not n or ctx.cfg.is_paused():
         return
-    ctx.gh.rest("POST", f"{tracker.repo_path(ctx)}/issues/{n}/labels", {"labels": [label]})
+    ctx.writes.tracker("add_label", number=int(n), labels=[label])
     events = ctx.gh.paginate(f"{tracker.repo_path(ctx)}/issues/{n}/timeline")
     mine = [e for e in events if e.get("event") == "labeled" and (e.get("label") or {}).get("name") == label]
     if mine:

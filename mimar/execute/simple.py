@@ -5,6 +5,7 @@ from pathlib import Path
 
 from .. import proposals
 from ..util import SafetyError
+from ..writes import WriteRequest
 from .base import Executor, Plan, Step, filter_args
 
 
@@ -20,17 +21,18 @@ def protection_body(settings: dict) -> dict:
     }
 
 
-def apply_policy_fix(gh, org: str, fix: dict) -> str:
-    """Idempotent REST calls. Returns a short note."""
+def apply_policy_fix(ctx, fix: dict, proposal: str | None = None) -> str:
+    """Idempotent typed write requests. Returns a short note."""
     repo, cls = fix["repo"], fix["class"]
+    w = ctx.writes
     if cls == "branch_protection":
-        gh.rest("PUT", f"/repos/{org}/{repo}/branches/{fix['branch']}/protection", protection_body(fix["settings"]))
+        w.submit(WriteRequest("put_branch_protection", repo, {"branch": fix["branch"], "settings": fix["settings"]}, proposal))
         return f"branch_protection on {repo}:{fix['branch']}"
     if cls == "dependabot_alerts":
-        gh.rest("PUT", f"/repos/{org}/{repo}/vulnerability-alerts")
+        w.submit(WriteRequest("enable_dependabot_alerts", repo, {}, proposal))
         return f"dependabot_alerts on {repo}"
     if cls == "secret_scanning":
-        gh.rest("PATCH", f"/repos/{org}/{repo}", {"security_and_analysis": {"secret_scanning": {"status": "enabled"}}})
+        w.submit(WriteRequest("enable_secret_scanning", repo, {}, proposal))
         return f"secret_scanning on {repo}"
     raise ValueError(f"unknown policy class {cls}")
 
@@ -41,7 +43,7 @@ class PolicyFixExecutor(Executor):
     def plan(self, p: dict) -> Plan:
         s = p["subject"]
         return Plan(p["id"], "policy_fix", "apply", [Step(
-            "apply", f"{s['class']} on {s['repo']}", None, lambda: apply_policy_fix(self.gh, self.cfg.org, s))])
+            "apply", f"{s['class']} on {s['repo']}", None, lambda: apply_policy_fix(self.ctx, s, p['id']))])
 
     def after_phase(self, p, plan):
         proposals.set_status(self.db, p["id"], "done")
@@ -57,7 +59,7 @@ class ArchiveExecutor(Executor):
         r = p["subject"]["repo"]
         return Plan(p["id"], "archive", "apply", [
             Step("archive", f"archive {r} (read-only; nothing is deleted)", None,
-                 lambda: self.gh.rest("PATCH", f"/repos/{self.cfg.org}/{r}", {"archived": True}) and "archived"),
+                 lambda: self.ctx.writes.submit(WriteRequest("archive_repo", r, {}, p["id"])) and "archived"),
             Step("verify", "confirm archived", None,
                  lambda: self._chk(r), mutates=False)])
 
@@ -80,7 +82,7 @@ class RenameExecutor(Executor):
         s = p["subject"]
         return Plan(p["id"], "rename", "apply", [Step(
             "rename", f"rename {s['repo']} to {s['new_name']} (GitHub keeps a redirect from the old name)", None,
-            lambda: self.gh.rest("PATCH", f"/repos/{self.cfg.org}/{s['repo']}", {"name": s["new_name"]}) and "renamed")])
+            lambda: self.ctx.writes.submit(WriteRequest("rename_repo", s["repo"], {"new_name": s["new_name"]}, p["id"])) and "renamed")])
 
     def after_phase(self, p, plan):
         proposals.set_status(self.db, p["id"], "done")
@@ -96,8 +98,9 @@ class NewRepoExecutor(Executor):
         s = p["subject"]
         return Plan(p["id"], "new_repo", "apply", [Step(
             "create", f"create {s['name']} ({'private' if s.get('private', True) else 'public'})", None,
-            lambda: self.gh.rest("POST", f"/orgs/{self.cfg.org}/repos", {
-                "name": s["name"], "private": s.get("private", True), "description": s.get("description", ""), "auto_init": True}) and "created")])
+            lambda: self.ctx.writes.submit(WriteRequest("create_repo", s["name"], {
+                "name": s["name"], "private": s.get("private", True), "description": s.get("description", ""),
+                "auto_init": True}, p["id"])) and "created")])
 
     def after_phase(self, p, plan):
         proposals.set_status(self.db, p["id"], "done")
@@ -135,7 +138,7 @@ class HealthFixExecutor(Executor):
             Step("clone", f"clone {repo}", ["git", "clone", url, str(w)], lambda: self.clone(url, w)),
             Step("edit", "add README.md skeleton", None, edit),
             Step("push", f"push {branch}", ["git", "push", "origin", f"{branch}:refs/heads/{branch}"],
-                 lambda: self.safe_push(["origin", f"{branch}:refs/heads/{branch}"], w, base)),
+                 lambda: self.safe_push(["origin", f"{branch}:refs/heads/{branch}"], w, base, repo=repo)),
             Step("open-pr", "open the PR", None, pr)])
 
     def after_phase(self, p, plan):
@@ -180,7 +183,7 @@ class MoveCodeExecutor(Executor):
                 Step("clone-target", f"clone {T}", ["git", "clone", t_url, str(tdir)], lambda: self.clone(t_url, tdir)),
                 Step("subtree-add", f"git subtree add --prefix={dest}", None, sub),
                 Step("push", f"push {branch}", ["git", "push", "origin", f"{branch}:refs/heads/{branch}"],
-                     lambda: self.safe_push(["origin", f"{branch}:refs/heads/{branch}"], tdir, tb)),
+                     lambda: self.safe_push(["origin", f"{branch}:refs/heads/{branch}"], tdir, tb, repo=T)),
                 Step("open-pr", f"open PR in {T}", None, pr)])
         if phase == "remove":
             from .base import Waiting
@@ -209,7 +212,7 @@ class MoveCodeExecutor(Executor):
                 Step("clone-source", f"clone {S}", ["git", "clone", s_url, str(sdir)], lambda: self.clone(s_url, sdir)),
                 Step("remove", f"git rm -r {D}", ["git", "rm", "-r", D], edit),
                 Step("push", f"push {branch}", ["git", "push", "origin", f"{branch}:refs/heads/{branch}"],
-                     lambda: self.safe_push(["origin", f"{branch}:refs/heads/{branch}"], sdir, sb)),
+                     lambda: self.safe_push(["origin", f"{branch}:refs/heads/{branch}"], sdir, sb, repo=S)),
                 Step("open-pr", f"open PR in {S}", None, pr)])
         return Plan(pid, "move_code", "done")
 

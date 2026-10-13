@@ -51,8 +51,8 @@ def gather_candidates(ctx, analysis: dict, snaps: dict[str, dict]) -> list[dict]
     for repo, findings in analysis["policy"].items():
         for f in findings:
             fix = f.get("fix")
-            if f["status"] != "drift" or not fix:
-                continue
+            if f["status"] != "drift" or not fix or f.get("action") == "log":
+                continue                       # `log` level: recorded in the analysis and dashboard, never proposed
             if fix["class"] == "health_fix":
                 if not re.match(r"readme", fix["file"], re.I):
                     continue
@@ -69,7 +69,9 @@ def gather_candidates(ctx, analysis: dict, snaps: dict[str, dict]) -> list[dict]
 def plan_for(ctx, kind: str, subject: dict, pid: str = "P-XXXX", phase: str | None = None):
     p = {"id": pid, "kind": kind, "subject": subject, "status": "awaiting-approval", "state": {"phase": phase} if phase else {},
          "epoch": iso(), "text": {}, "evidence": {}}
-    return executor_for(ctx, kind).plan(p)
+    plan = executor_for(ctx, kind).plan(p)
+    plan.subject = subject
+    return plan
 
 
 def _latest_for_key(db, key: str):
@@ -83,6 +85,8 @@ def refresh_issue(ctx, p: dict, approval: dict | None = None) -> None:
         body = tracker.render_body(ctx, p, plan.render(), ex.rollback_notes(p), approval)
         tracker.upsert_issue(ctx, p, body)
         ctx.db.x("update proposals set body=? where id=?", (body, p["id"]))
+        if not ctx.cfg.is_paused():
+            proposals.note_shown(ctx.db, p["id"], p["plan_hash"])      # approvals bind to what was displayed
     except Exception as e:  # noqa: BLE001
         log.warning("issue update failed for %s: %s", p["id"], str(e)[:200])
 
@@ -177,6 +181,7 @@ def _refresh_existing(ctx, p: dict, c: dict, res: dict) -> None:
         db.x("update proposals set state=?, score=?, plan_hash=?, epoch=?, epoch_score=?, status='awaiting-approval', updated=? where id=?",
              (json.dumps(st), c["score"], new_hash, iso(), c["score"], iso(), p["id"]))
         res["replanned"].append(p["id"])
+        _clear_stale_approvals(ctx, p, "plan changed")
     else:
         db.x("update proposals set state=?, score=?, updated=? where id=?", (json.dumps(st), c["score"], iso(), p["id"]))
         res["updated"].append(p["id"])
@@ -192,3 +197,13 @@ def create_followup(ctx, parent: dict, kind: str, subject: dict) -> dict:
     p = proposals.create(ctx.db, kind, cand["key"], subject, cand["evidence"], text, 0.9, plan.fingerprint(), parent=parent["id"])
     refresh_issue(ctx, proposals.get(ctx.db, p["id"]))
     return p
+
+
+def _clear_stale_approvals(ctx, p: dict, why: str) -> None:
+    """After a re-plan, earlier approvals no longer count (their hash differs), and the label comes off the issue."""
+    from ..approve import labels
+    ctx.db.x("update approvals set valid=0, reason=? where proposal=? and valid=1", (why, p["id"]))
+    try:
+        labels.clear_decision_labels(ctx, proposals.get(ctx.db, p["id"]))
+    except Exception as e:  # noqa: BLE001
+        log.warning("could not clear labels on %s: %s", p["id"], str(e)[:160])

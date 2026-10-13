@@ -32,6 +32,12 @@ class Context:
     mirror_path_fn: object | None = None
     work_root: Path | None = None
     sync_mirrors: bool = True
+    writes: object = None
+    _own_login: str | None = None
+
+    def __post_init__(self):
+        from .writes import Broker
+        self.writes = Broker(self)
 
     def remote_url(self, repo: str) -> str:
         return (self.remote_url_fn or (lambda r: default_remote_url(self.cfg.org, r)))(repo)

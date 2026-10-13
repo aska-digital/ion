@@ -7,11 +7,8 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from ..approve.core import evaluate
-from ..util import Refused, SafetyError, guard_git, git, git_env, run
-
-
-class Waiting(Exception):
-    """A step that cannot proceed yet (e.g. PR not merged). Not an error, not recorded as done."""
+from ..writes import WriteRequest
+from ..util import Refused, SafetyError, Waiting, guard_git, git, git_env, run  # noqa: F401
 
 
 @dataclass
@@ -29,6 +26,7 @@ class Plan:
     kind: str
     phase: str
     steps: list[Step] = field(default_factory=list)
+    subject: dict = field(default_factory=dict)
 
     def render(self) -> list[str]:
         lines = []
@@ -42,8 +40,11 @@ class Plan:
         return [" ".join(shlex.quote(c) for c in s.cmd) for s in self.steps if s.cmd]
 
     def fingerprint(self) -> str:
+        """The plan hash (sha256, hex): what a maintainer's approval is bound to. It covers the kind, the subject and
+        every step with its exact command, so any change of what would run changes the hash."""
         import hashlib
-        return hashlib.sha256(json.dumps([(s.name, s.cmd) for s in self.steps]).encode()).hexdigest()[:16]
+        doc = {"kind": self.kind, "subject": self.subject, "steps": [(s.name, s.desc, s.cmd) for s in self.steps]}
+        return hashlib.sha256(json.dumps(doc, sort_keys=True, default=str).encode()).hexdigest()
 
 
 def check_gate(ctx, p: dict) -> str:
@@ -53,16 +54,26 @@ def check_gate(ctx, p: dict) -> str:
         raise Refused("kill switch is on (PAUSED file or paused: true)")
     if p["status"] in ("rejected", "dropped", "done"):
         raise Refused(f"proposal is {p['status']}")
-    if p["kind"] == "policy_fix":
-        if p["subject"].get("class") in cfg["auto_apply"]:
-            return "allowlisted policy_fix"
-    if p["kind"] == "health_fix" and "health_fix" in cfg["auto_apply"]:
-        return "allowlisted health_fix"
+    if p["kind"] in ("policy_fix", "health_fix"):
+        from ..analyze import policy
+        repo = p["subject"].get("repo")
+        ov = repo_override(ctx, repo)
+        cls = p["subject"].get("class") if p["kind"] == "policy_fix" else "health_fix"
+        if policy.governed(cfg, ov, repo) and policy.action_for(cfg, ov, cls) == "fix":
+            return f"allowlisted {p['kind']}"
     started = bool(p["state"].get("started"))
     ev = evaluate(ctx, p, ignore_ttl=started)
     if ev["state"] != "approved":
         raise Refused(f"no verified approval ({ev['state']}: {ev['reason']})")
     return "approval"
+
+
+def repo_override(ctx, repo: str | None) -> dict:
+    from ..collect.snapshot import latest_snapshots
+    from ..config import parse_repo_override
+    if not repo:
+        return {}
+    return parse_repo_override((latest_snapshots(ctx.db)[0].get(repo) or {}).get("override_text"))[0]
 
 
 class Executor:
@@ -167,19 +178,23 @@ class Executor:
         return bool(pr.get("merged"))
 
     def open_pr(self, repo: str, head: str, base: str, title: str, body: str) -> int:
-        pr = self.gh.rest("POST", f"/repos/{self.cfg.org}/{repo}/pulls",
-                          {"title": title, "head": head, "base": base, "body": body})
+        pr = self.ctx.writes.submit(WriteRequest("open_pr", repo, {"title": title, "head": head, "base": base, "body": body}))
         return int(pr["number"])
 
-    def safe_push(self, argv_tail: list[str], cwd, default_branch: str | None, allow_default: bool = False) -> None:
-        """Push without force. Feature branches only, unless the destination is a brand new empty repo."""
+    def safe_push(self, argv_tail: list[str], cwd, default_branch: str | None, allow_default: bool = False,
+                  repo: str = "") -> None:
+        """Push without force, as a typed `push_branch` request. Feature branches only, unless the destination is a
+        brand new empty repo."""
         full = ["push", *argv_tail]
         refs = [a for a in argv_tail if not a.startswith("-")]
+        dest = ""
         for r in refs[1:]:
             dest = r.split(":")[-1].replace("refs/heads/", "")
             if default_branch and dest == default_branch and not allow_default:
                 raise SafetyError(f"refusing to push to default branch {default_branch}")
-        self.g(full, cwd=cwd)
+        req = WriteRequest("push_branch", repo or "unknown", {"branch": dest, "base": default_branch or "main",
+                                                               **({"initial": True} if allow_default else {})})
+        self.ctx.writes.submit(req, lambda: self.g(full, cwd=cwd))
 
 
 def filter_args(dirs: list[str]) -> list[str]:

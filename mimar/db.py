@@ -25,7 +25,11 @@ create table if not exists mirrored_labels(proposal text, label text, event_id t
 create table if not exists ledger(id integer primary key autoincrement, proposal text, step text, phase text, ts text, detail text);
 create table if not exists outbox(id integer primary key autoincrement, ts text, to_seat text, body text, sent integer default 0);
 create table if not exists kv(k text primary key, v text);
+create table if not exists write_log(id integer primary key autoincrement, ts text, type text, repo text, target text,
+  proposal text, ok integer, detail text);
 """
+
+MIGRATIONS = [("approvals", "plan_hash", "text")]
 
 
 class DB:
@@ -34,6 +38,11 @@ class DB:
         self.conn = sqlite3.connect(self.path)
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
+        for table, col, typ in MIGRATIONS:
+            cols = {r["name"] for r in self.conn.execute(f"pragma table_info({table})")}
+            if col not in cols:
+                self.conn.execute(f"alter table {table} add column {col} {typ}")
+        self.conn.commit()
 
     def q(self, sql: str, args: tuple = ()) -> list[sqlite3.Row]:
         return self.conn.execute(sql, args).fetchall()

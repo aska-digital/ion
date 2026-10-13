@@ -5,6 +5,7 @@ from pathlib import Path
 
 from .. import proposals
 from ..util import Refused, SafetyError, filter_repo_path
+from ..writes import WriteRequest
 from .base import Executor, Plan, Step, filter_args
 from .simple import apply_policy_fix
 
@@ -38,8 +39,8 @@ class SplitExecutor(Executor):
                 return "exists"
             except Exception:  # noqa: BLE001
                 pass
-            self.gh.rest("POST", f"/orgs/{self.cfg.org}/repos",
-                         {"name": N, "private": bool(private), "description": f"Split from {A}: {', '.join(dirs)}", "auto_init": False})
+            self.ctx.writes.submit(WriteRequest("create_repo", N, {
+                "name": N, "private": bool(private), "description": f"Split from {A}: {', '.join(dirs)}", "auto_init": False}))
             return "created"
 
         def push():
@@ -48,7 +49,7 @@ class SplitExecutor(Executor):
                 raise SafetyError(f"{N} already has refs; refusing to push into a non-empty repo")
             self.g(["remote", "remove", "origin"], cwd=cdir, check=False)
             self.g(["remote", "add", "origin", n_url], cwd=cdir)
-            self.safe_push([*self.auth(n_url)][:0] + ["origin", f"HEAD:refs/heads/{base}"], cdir, base, allow_default=True)
+            self.safe_push(["origin", f"HEAD:refs/heads/{base}"], cdir, base, allow_default=True, repo=N)
 
         def verify():
             return str(self._verify_counts(p, cdir))
@@ -57,7 +58,7 @@ class SplitExecutor(Executor):
             notes = []
             for f in self._policy_fixes(N, private):
                 try:
-                    notes.append(apply_policy_fix(self.gh, self.cfg.org, f))
+                    notes.append(apply_policy_fix(self.ctx, f, pid))
                 except Exception as e:  # noqa: BLE001
                     notes.append(f"{f['class']}: {e}")
             return "; ".join(notes) or "nothing to apply"
@@ -130,7 +131,7 @@ class SplitExecutor(Executor):
             Step("clone-source", f"clone {A}", ["git", "clone", url, str(w)], lambda: self.clone(url, w)),
             Step("remove-dirs", f"git rm {', '.join(dirs)} and add MOVED.md", ["git", "rm", "-r", *dirs], edit),
             Step("push", f"push {branch}", ["git", "push", "origin", f"{branch}:refs/heads/{branch}"],
-                 lambda: self.safe_push(["origin", f"{branch}:refs/heads/{branch}"], w, base)),
+                 lambda: self.safe_push(["origin", f"{branch}:refs/heads/{branch}"], w, base, repo=A)),
             Step("open-pr", f"open the removal PR in {A}", None, pr)])
 
     def verify(self, p: dict) -> bool:
