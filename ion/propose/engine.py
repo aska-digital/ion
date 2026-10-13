@@ -182,6 +182,15 @@ def _refresh_existing(ctx, p: dict, c: dict, res: dict) -> None:
     replan = scoring.replan_needed(p["plan_hash"], new_hash, p["epoch_score"], c["score"], ctx.cfg)
     st = p["state"]
     st["subject"], st["evidence"] = c["subject"], c["evidence"]
+    # Template text is ion's own wording, not evidence: keep it current while nobody has approved
+    # (or the plan is being re-made, which clears approvals anyway). LLM text, and any text an
+    # approver has already acted on, is left exactly as it was shown.
+    if st.get("text", {}).get("source") in (None, "template") and (
+            replan or not db.q("select 1 from approvals where proposal=? and valid=1", (p["id"],))):
+        try:
+            st["text"] = synth.template(c, plan.render())
+        except (KeyError, TypeError) as e:   # hand-made or legacy evidence: keep the stored wording
+            log.warning("template refresh skipped for %s: %s", p["id"], e)
     if replan and p["status"] in ("awaiting-approval", "approved", "held"):
         notes = st.get("notes", []) + [f"{iso()}: evidence changed; plan re-made, approval is needed again"]
         st["notes"] = notes

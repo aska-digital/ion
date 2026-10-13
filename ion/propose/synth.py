@@ -63,7 +63,13 @@ def template(cand: dict, plan_lines: list[str]) -> dict:
     elif k == "policy_fix":
         title = f"{s['class'].replace('_', ' ')} on {s['repo']}"
         rationale = ev.get("detail", "drift from policy")
-        risks = ["Stricter protection can block direct pushes to the default branch."]
+        risks = {
+            "branch_protection": ["Stricter protection can block direct pushes to the default branch."],
+            "dependabot_alerts": ["New alerts may surface vulnerabilities that then need triage.",
+                                  "Alert notifications go to watchers, so a noisy dependency tree can mean mail."],
+            "secret_scanning": ["Findings may include historical secrets that then need rotation, not just dismissal.",
+                                "False positives need dismissal with a reason, which takes maintainer time."],
+        }.get(s["class"], ["The change alters repository settings; check the settings page after it lands."])
         blast = f"Settings of {s['repo']} only."
         rollback = ["Revert the setting in the repository's settings page."]
     else:
