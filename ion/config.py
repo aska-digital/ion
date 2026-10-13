@@ -152,9 +152,15 @@ class Config(dict):
         return bool(self.get("paused")) or (home() / "PAUSED").exists()
 
     def maintainers_for(self, repo_override: dict | None) -> list[str]:
-        if repo_override and repo_override.get("maintainers"):
-            return list(repo_override["maintainers"])
-        return list(self["maintainers"])
+        """The org maintainers, narrowed by a repo's own list. Anyone who can push to a repo can edit its
+        `.github/ion.yml`, so that list can only remove org maintainers, never add a login: names not in the org list
+        are dropped, and a list that names none of them leaves the repo with no approvers (fails closed)."""
+        org = list(self["maintainers"])
+        mine = (repo_override or {}).get("maintainers")
+        if not mine:
+            return org
+        mine = {m.lower() for m in mine}
+        return [m for m in org if m.lower() in mine]
 
     def threshold(self, name: str) -> float:
         return self["thresholds"][name]

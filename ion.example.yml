@@ -1,7 +1,7 @@
 # Generic Ion configuration. Copy to ion.yml (or pass --config) and edit.
 org: your-org                 # GitHub organisation to steward
 paused: false                 # kill switch; ~/.ion/PAUSED does the same
-maintainers: [your-login]     # people whose approval counts; per-repo override in <repo>/.github/ion.yml
+maintainers: [your-login]     # people whose approval counts; <repo>/.github/ion.yml can only narrow this list
 tracker_repo: ion-tracker   # proposals live here as issues. Keep it PRIVATE: bodies name private repos.
 plan: free                    # free | pro | team (free: private-repo protection is reported as blocked_by_plan)
 approval_sources: [github_label]   # github_label | divan_bus

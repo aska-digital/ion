@@ -59,7 +59,7 @@ Source layout: `ion/collect` (GraphQL, mirrors, snapshots), `ion/analyze` (healt
 
 ## Configure
 
-Copy `ion.example.yml` to `ion.yml` and edit. Pass it with `--config`, or set `ION_CONFIG`, or keep it at `./ion.yml` or `~/.ion/ion.yml`. State lives in `~/.ion/state.db` (`ION_HOME` overrides). Per-repo overrides go in `<repo>/.github/ion.yml` (keys: `maintainers`, `ignore`, `enabled`, `policy`, `policy_actions`).
+Copy `ion.example.yml` to `ion.yml` and edit. Pass it with `--config`, or set `ION_CONFIG`, or keep it at `./ion.yml` or `~/.ion/ion.yml`. State lives in `~/.ion/state.db` (`ION_HOME` overrides). Per-repo overrides go in `<repo>/.github/ion.yml` (keys: `maintainers`, `ignore`, `enabled`, `policy`, `policy_actions`). Anyone who can push to a repo can edit that file, so its `maintainers` and `policy_actions` can only narrow the org config: `maintainers` keeps only logins that are also org maintainers (none in common means nobody can approve for that repo), and `policy_actions` can lower a class's level but not raise it.
 
 Keys worth knowing:
 
