@@ -73,8 +73,11 @@ def test_verify_filtered_rejects_a_changed_tree(filtered):
 def test_verify_filtered_rejects_a_commit_map_gap(filtered):
     src, flt = filtered
     mp = flt / ".git" / "filter-repo" / "commit-map"
-    lines = mp.read_text().splitlines()
-    lines[2] = lines[2].split()[0] + " " + ZERO                  # pretend one touching commit was pruned
+    # The map is sorted by old sha, so which line is which commit depends on the hashes. Pick a commit that touches
+    # site/ explicitly; a fixed line can land on a commit that was legitimately pruned already (as it did on CI).
+    touching = git(["rev-list", "origin/main", "--", "site"], cwd=src).stdout.split()
+    victim = touching[0]
+    lines = [(l.split()[0] + " " + ZERO) if l.startswith(victim) else l for l in mp.read_text().splitlines()]
     mp.write_text("\n".join(lines) + "\n")
     with pytest.raises(RuntimeError, match="commit map"):
         verify_filtered(flt, src, "origin/main", ["site"])
