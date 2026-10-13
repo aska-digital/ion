@@ -2,6 +2,8 @@
 
 Ion is a steward bot for a GitHub organisation. It watches every repo, spots drift from your policy, and proposes structural changes (merge, split, archive, rename, move code). **It never changes structure without a maintainer's approval.** Apache-2.0.
 
+**Website:** [aska-digital.github.io/ion](https://aska-digital.github.io/ion/), an infographic abstract with a working model of the approval gate, plus a guide to running ion. The site source lives in `site/` and deploys with `.github/workflows/pages.yml`.
+
 See [Why ion](#why-ion) for the name.
 
 ```

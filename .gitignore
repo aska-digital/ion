@@ -6,3 +6,4 @@ __pycache__/
 uv.lock.bak
 .pytest_out
 config/
+_site/
