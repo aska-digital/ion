@@ -8,7 +8,7 @@ def commit(i, login="dev1", day=None):
             "author": {"name": "Dev One", "email": "dev1@example.com", "user": {"login": login}}}
 
 
-def repo(name, private=False, pushed="2026-10-10T10:00:00Z", fork=False, archived=False, rules=None, vuln=True, mimar_yml=None,
+def repo(name, private=False, pushed="2026-10-10T10:00:00Z", fork=False, archived=False, rules=None, vuln=True, ion_yml=None,
          desc="a repo"):
     return {
         "name": name, "url": f"https://github.com/acme/{name}", "description": desc, "isPrivate": private, "isFork": fork,
@@ -21,7 +21,7 @@ def repo(name, private=False, pushed="2026-10-10T10:00:00Z", fork=False, archive
         "vulnerabilityAlerts": {"totalCount": 0},
         "branchProtectionRules": {"nodes": rules or []},
         "collaborators": {"nodes": [{"login": "ahrazzle"}]},
-        "mimarYml": {"text": mimar_yml} if mimar_yml else None, "parent": None,
+        "ionYml": {"text": ion_yml} if ion_yml else None, "parent": None,
     }
 
 

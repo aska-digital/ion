@@ -3,10 +3,10 @@ import hashlib
 
 from conftest import make_ctx
 from helpers import MERGE, new_proposal
-from mimar import proposals
-from mimar.approve import core, sync_approvals
-from mimar.collect import run_collect
-from mimar.report import orghealth as dashboard
+from ion import proposals
+from ion.approve import core, sync_approvals
+from ion.collect import run_collect
+from ion.report import orghealth as dashboard
 
 DASH = {"report": {"org_health_issue": True}, "approval_sources": ["github_label", "dashboard"]}
 
@@ -25,7 +25,7 @@ def setup(ctx):
 def tick(body, action, pid):
     out = []
     for line in body.splitlines():
-        if f"mimar:box {action} {pid} " in line:
+        if f"ion:box {action} {pid} " in line:
             line = line.replace("- [ ]", "- [x]", 1)
         out.append(line)
     return "\n".join(out) + "\n"
@@ -35,11 +35,11 @@ def test_dashboard_is_created_once_and_edited_in_place(tmp_path, home, world):
     ctx = dctx(tmp_path, world)
     p, n = setup(ctx)
     issue = ctx.gh.issues[n]
-    assert issue["title"] == "Org health" and "mimar:dashboard" in issue["labels"]
+    assert issue["title"] == "Org health" and "ion:dashboard" in issue["labels"]
     for heading in ("Awaiting approval", "Approved (queued)", "On hold", "Blocked by plan", "Rate-limited or stopped early",
                     "Errors", "Recently done"):
         assert f"## {heading}" in issue["body"]
-    assert p["id"] in issue["body"] and f"mimar:box approve {p['id']} {p['plan_hash'][:12]}" in issue["body"]
+    assert p["id"] in issue["body"] and f"ion:box approve {p['id']} {p['plan_hash'][:12]}" in issue["body"]
     assert f"issues/{p['issue_number']}" in issue["body"]                                # links to the proposal's issue
     before = len(ctx.gh.writes)
     assert dashboard.publish(ctx, {}).startswith("unchanged") and len(ctx.gh.writes) == before
@@ -60,7 +60,7 @@ def test_maintainer_tick_approves_and_is_mirrored(tmp_path, home, world):
     row = ctx.db.one("select * from approvals where source='dashboard'")
     assert row["actor"] == "maint" and row["valid"] == 1 and row["plan_hash"] == p["plan_hash"]
     assert proposals.get(ctx.db, p["id"])["status"] == "approved"
-    assert "mimar:approved" in ctx.gh.issues[p["issue_number"]]["labels"]                # mirrored: the record lives on GitHub
+    assert "ion:approved" in ctx.gh.issues[p["issue_number"]]["labels"]                # mirrored: the record lives on GitHub
 
 
 def test_tick_by_a_non_maintainer_is_ignored(tmp_path, home, world):
@@ -135,7 +135,7 @@ def test_dashboard_source_is_off_unless_configured(ctx):
 def test_dashboard_shows_blocks_stops_and_errors(tmp_path, home, world):
     ctx = dctx(tmp_path, world)
     run_collect(ctx)
-    from mimar.analyze import run_analyze
+    from ion.analyze import run_analyze
     run_analyze(ctx)
     ctx.db.x("update runs set partial=1 where id=(select max(id) from runs)")
     ctx.db.kv_set("last_breaker_trip", {"ts": proposals.iso(), "reason": "too many repos"})

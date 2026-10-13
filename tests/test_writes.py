@@ -7,12 +7,12 @@ import pytest
 
 from conftest import make_ctx
 from helpers import MERGE, approve, new_proposal
-from mimar import proposals
-from mimar.collect import run_collect
-from mimar.execute import executor_for
-from mimar.execute.runner import run_execute
-from mimar.util import Refused
-from mimar.writes import (BreakerTripped, CapReached, WriteRejected, WriteRequest, lowers_protection)
+from ion import proposals
+from ion.collect import run_collect
+from ion.execute import executor_for
+from ion.execute.runner import run_execute
+from ion.util import Refused
+from ion.writes import (BreakerTripped, CapReached, WriteRejected, WriteRequest, lowers_protection)
 
 
 def req(t, repo="alpha-core", **payload):
@@ -34,12 +34,12 @@ def test_unknown_type_and_bad_payload_are_rejected(ctx):
     assert not ctx.gh.writes
 
 
-def test_push_branch_only_mimar_branches_never_default(ctx):
+def test_push_branch_only_ion_branches_never_default(ctx):
     w = ctx.writes
     for branch in ("main", "feature/x"):
         with pytest.raises(WriteRejected):
             w.submit(req("push_branch", branch=branch, base="main"), lambda: None)
-    w.submit(req("push_branch", branch="mimar/P-0001", base="main"), lambda: None)
+    w.submit(req("push_branch", branch="ion/P-0001", base="main"), lambda: None)
     w.submit(req("push_branch", repo="new", branch="main", base="main", initial=True), lambda: None)   # brand new empty repo
 
 
@@ -54,20 +54,20 @@ def test_per_type_cap_defers_instead_of_failing(ctx):
     ctx.cfg["writes"] = {"caps": {"open_pr": 2}}
     w = ctx.writes
     for i in range(2):
-        w.submit(req("open_pr", title="t", head=f"mimar/P-{i}", base="main", body="b"))
+        w.submit(req("open_pr", title="t", head=f"ion/P-{i}", base="main", body="b"))
     with pytest.raises(CapReached, match="cap of 2 open_pr"):
-        w.submit(req("open_pr", title="t", head="mimar/P-9", base="main", body="b"))
+        w.submit(req("open_pr", title="t", head="ion/P-9", base="main", body="b"))
     assert len(ctx.gh.writes_to("POST", "/pulls")) == 2
     w.reset()                                                                  # a new run starts with fresh counters
-    w.submit(req("open_pr", title="t", head="mimar/P-9", base="main", body="b"))
+    w.submit(req("open_pr", title="t", head="ion/P-9", base="main", body="b"))
 
 
 def test_default_cap_is_five_prs_and_one_archive(ctx):
     ctx.cfg["guards"] = {"enabled": False}
     for i in range(5):
-        ctx.writes.submit(req("open_pr", title="t", head=f"mimar/P-{i}", base="main", body="b"))
+        ctx.writes.submit(req("open_pr", title="t", head=f"ion/P-{i}", base="main", body="b"))
     with pytest.raises(CapReached):
-        ctx.writes.submit(req("open_pr", title="t", head="mimar/P-5", base="main", body="b"))
+        ctx.writes.submit(req("open_pr", title="t", head="ion/P-5", base="main", body="b"))
     ctx.writes.submit(req("archive_repo", repo="old-tool"))
     with pytest.raises(CapReached):
         ctx.writes.submit(req("archive_repo", repo="alpha-cli"))
@@ -92,8 +92,8 @@ def test_kill_switch_stops_the_broker_itself(ctx):
 
 
 def test_nothing_outside_the_broker_writes_to_github():
-    """Static guard: only mimar/writes.py may issue a non-GET GitHub API call."""
-    root = Path(__file__).parent.parent / "mimar"
+    """Static guard: only ion/writes.py may issue a non-GET GitHub API call."""
+    root = Path(__file__).parent.parent / "ion"
     pat = re.compile(r"""\.rest\(\s*["'](POST|PUT|PATCH|DELETE)["']""")
     offenders = [f"{p.relative_to(root)}:{i}" for p in root.rglob("*.py") if p.name != "writes.py"
                  for i, line in enumerate(p.read_text().splitlines(), 1) if pat.search(line)]
@@ -111,7 +111,7 @@ def test_breaker_trips_when_a_run_touches_too_much_of_the_org(ctx):
         w.submit(req("enable_dependabot_alerts", repo="old-tool"))
     assert w.tripped and len(ctx.gh.writes_to("PUT", "/vulnerability-alerts")) == 1
     with pytest.raises(BreakerTripped):                                          # the whole run is stopped, not one write
-        w.submit(req("add_label", repo="mimar-tracker", number=1, labels=["x"]))
+        w.submit(req("add_label", repo="ion-tracker", number=1, labels=["x"]))
     assert ctx.db.kv_get("last_breaker_trip")["reason"].startswith("the run would touch")
     w.reset()                                                                    # next run starts clean
     assert not w.tripped
@@ -121,7 +121,7 @@ def test_tracker_writes_do_not_count_as_touching_repos(ctx):
     run_collect(ctx)
     ctx.cfg["guards"] = {"max_repo_fraction": 0.1, "min_repos": 1}
     for i in range(1, 6):
-        ctx.writes.tracker("add_label", number=i, labels=["x"])                 # the tracker is Mimar's own repo
+        ctx.writes.tracker("add_label", number=i, labels=["x"])                 # the tracker is Ion's own repo
 
 
 def test_breaker_trips_on_write_volume(ctx):
@@ -155,7 +155,7 @@ def test_lowers_protection_rules():
 
 def test_breaker_blocks_a_protection_downgrade_in_flight(ctx):
     run_collect(ctx)
-    weak = {"require_pr": False, "allow_force_pushes": True}                    # as if a typo in mimar.yml
+    weak = {"require_pr": False, "allow_force_pushes": True}                    # as if a typo in ion.yml
     with pytest.raises(BreakerTripped, match="lower protection"):
         ctx.writes.submit(req("put_branch_protection", repo="mono", branch="main", settings=weak))
     assert not ctx.gh.writes

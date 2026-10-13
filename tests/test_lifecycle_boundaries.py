@@ -2,13 +2,13 @@
 import json
 
 from conftest import make_ctx
-from mimar import proposals
-from mimar.analyze import boundaries, lifecycle, run_analyze
-from mimar.collect import run_collect
-from mimar.config import load_config
-from mimar.execute.runner import run_execute
-from mimar.propose.engine import run_propose
-from mimar.util import iso, now
+from ion import proposals
+from ion.analyze import boundaries, lifecycle, run_analyze
+from ion.collect import run_collect
+from ion.config import load_config
+from ion.execute.runner import run_execute
+from ion.propose.engine import run_propose
+from ion.util import iso, now
 import datetime as dt
 
 
@@ -35,10 +35,10 @@ def test_stage_progression_and_reset_by_push():
 
 
 def test_frozen_by_topic_or_config():
-    assert lifecycle.stage_of("r", snap(days=999, topics=["mimar-frozen"]), CFG) == "frozen"
+    assert lifecycle.stage_of("r", snap(days=999, topics=["ion-frozen"]), CFG) == "frozen"
     cfg = load_config(None, {"org": "o", "lifecycle": {"frozen": ["r"]}})
     assert lifecycle.stage_of("r", snap(days=999), cfg) == "frozen"
-    assert lifecycle.archive_candidates({"r": snap(days=999, topics=["mimar-frozen"])}, [], CFG) == []
+    assert lifecycle.archive_candidates({"r": snap(days=999, topics=["ion-frozen"])}, [], CFG) == []
 
 
 def test_only_the_last_stage_qualifies_for_a_proposal():

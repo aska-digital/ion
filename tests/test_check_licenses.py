@@ -1,4 +1,4 @@
-"""scripts/check_licenses.py: the allowlist guard that keeps GPL out of Mimar's dependencies."""
+"""scripts/check_licenses.py: the allowlist guard that keeps GPL out of Ion's dependencies."""
 import importlib.util
 import subprocess
 import sys

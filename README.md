@@ -1,17 +1,17 @@
-# Mimar
+# Ion
 
-Mimar is a steward bot for a GitHub organisation. It watches every repo, spots drift from your policy, and proposes structural changes (merge, split, archive, rename, move code). **It never changes structure without a maintainer's approval.** Apache-2.0.
+Ion is a steward bot for a GitHub organisation. It watches every repo, spots drift from your policy, and proposes structural changes (merge, split, archive, rename, move code). **It never changes structure without a maintainer's approval.** Apache-2.0.
 
-*Mimar* is Ottoman Turkish for architect.
+*Ion* is Ottoman Turkish for architect.
 
 ```
 collect -> analyze -> propose -> approve -> execute -> report
 ```
 
-- **collect**: one batched GraphQL query for metadata, plus bare git mirrors under `~/.mimar/cache` for contents. No REST contents calls.
+- **collect**: one batched GraphQL query for metadata, plus bare git mirrors under `~/.ion/cache` for contents. No REST contents calls.
 - **analyze** (deterministic, no LLM): per-repo health, policy drift, pairwise coupling, in-repo cohesion, staged lifecycle, tag boundaries.
 - **propose**: scores, hysteresis, cooldown, an optional LLM pass that writes the text, one tracking issue per proposal, each with a plan hash.
-- **approve**: a maintainer applies a label, sends a bus message or ticks a dashboard box. Mimar checks who did it and which plan they saw.
+- **approve**: a maintainer applies a label, sends a bus message or ticks a dashboard box. Ion checks who did it and which plan they saw.
 - **execute**: the only layer that writes, and only through typed, capped, logged write requests. Dry run by default. Ledgered, resumable, behind a circuit breaker.
 - **report**: the "Org health" dashboard issue, a markdown report, a short digest to your notifiers.
 
@@ -21,23 +21,23 @@ collect -> analyze -> propose -> approve -> execute -> report
 - **Circuit breaker.** A run that would touch more than a quarter of the org, archive more than 2 repos, lower branch protection anywhere, or make too many writes is aborted before it writes.
 - **Approval bound to a plan hash.** The issue shows `plan-sha256: ...`; an approval counts only for that hash; any re-plan takes the label off and asks again.
 - **Action level per policy** (`log`, `issue`, `fix`) and **opt-in or opt-out** per repo.
-- **Co-change hygiene.** Huge commits, bots and Mimar's own identity are ignored; minimum revision counts; the shared-name-prefix signal is down-weighted and never counts alone.
-- **Exact verification of moves.** Tree equality plus the filter-repo commit map, and a `Mimar-Origin: org/repo@sha` trailer on every moved commit.
+- **Co-change hygiene.** Huge commits, bots and Ion's own identity are ignored; minimum revision counts; the shared-name-prefix signal is down-weighted and never counts alone.
+- **Exact verification of moves.** Tree equality plus the filter-repo commit map, and a `Ion-Origin: org/repo@sha` trailer on every moved commit.
 - **Org health dashboard issue** with approve and hold checkboxes, where the actor is still verified.
 - **Staged lifecycle** (active, stale, archive-proposed) with a frozen exemption. Archiving is never automatic.
-- **`mimar plan-config`** previews what a config change would do before you use it.
+- **`ion plan-config`** previews what a config change would do before you use it.
 - **Ordered changesets**: multi-repo proposals list their PRs in order, with dependencies and live states.
 - **Boundary rules from repo tags** (GitHub topics): violations are findings, cross-scope merges are blocked or flagged.
-- **`mimar grep`** over every repo's mirror, and **`mimar autofix`** for fleet changes (preview diffs, then a proposal; PRs only after approval).
+- **`ion grep`** over every repo's mirror, and **`ion autofix`** for fleet changes (preview diffs, then a proposal; PRs only after approval).
 
 ## Install
 
 Needs Python 3.12+, [uv](https://docs.astral.sh/uv/), `git` (with `git subtree`), the GitHub CLI `gh` (logged in), and for splits [git-filter-repo](https://github.com/newren/git-filter-repo).
 
 ```sh
-git clone <this repo> && cd mimar
+git clone <this repo> && cd ion
 uv sync                      # add --extra graph for networkx (Louvain clustering)
-uv run mimar --config mimar.yml doctor
+uv run ion --config ion.yml doctor
 ```
 
 `doctor` checks gh auth, git and subtree, filter-repo, the LLM backend, the bus (if used) and the config.
@@ -53,11 +53,11 @@ collect -> analyze -> propose -> approve -> execute -> report
                               (bound to the plan hash)
 ```
 
-Source layout: `mimar/collect` (GraphQL, mirrors, snapshots), `mimar/analyze` (health, policy, coupling, cohesion, lifecycle, boundaries), `mimar/propose` (scoring, LLM text, engine), `mimar/approve` (label, bus, state machine), `mimar/execute` (one executor per proposal kind, `provenance.py` for verification), `mimar/writes.py` (typed requests, caps, breaker), `mimar/changesets.py`, `mimar/report` (markdown, digest, `orghealth.py` for the dashboard issue), `mimar/fleet.py` (grep, autofix), `mimar/planconfig.py`. The full design is in `SPEC.md`.
+Source layout: `ion/collect` (GraphQL, mirrors, snapshots), `ion/analyze` (health, policy, coupling, cohesion, lifecycle, boundaries), `ion/propose` (scoring, LLM text, engine), `ion/approve` (label, bus, state machine), `ion/execute` (one executor per proposal kind, `provenance.py` for verification), `ion/writes.py` (typed requests, caps, breaker), `ion/changesets.py`, `ion/report` (markdown, digest, `orghealth.py` for the dashboard issue), `ion/fleet.py` (grep, autofix), `ion/planconfig.py`. The full design is in `SPEC.md`.
 
 ## Configure
 
-Copy `mimar.example.yml` to `mimar.yml` and edit. Pass it with `--config`, or set `MIMAR_CONFIG`, or keep it at `./mimar.yml` or `~/.mimar/mimar.yml`. State lives in `~/.mimar/state.db` (`MIMAR_HOME` overrides). Per-repo overrides go in `<repo>/.github/mimar.yml` (keys: `maintainers`, `ignore`, `enabled`, `policy`, `policy_actions`).
+Copy `ion.example.yml` to `ion.yml` and edit. Pass it with `--config`, or set `ION_CONFIG`, or keep it at `./ion.yml` or `~/.ion/ion.yml`. State lives in `~/.ion/state.db` (`ION_HOME` overrides). Per-repo overrides go in `<repo>/.github/ion.yml` (keys: `maintainers`, `ignore`, `enabled`, `policy`, `policy_actions`).
 
 Keys worth knowing:
 
@@ -65,7 +65,7 @@ Keys worth knowing:
 |---|---|
 | `org` | the organisation to steward |
 | `maintainers` | GitHub logins whose approval counts |
-| `tracker_repo` | repo where proposals are filed as issues. **Keep it private.** Proposal bodies name your private repos and quote their metadata. Default `mimar-tracker`. |
+| `tracker_repo` | repo where proposals are filed as issues. **Keep it private.** Proposal bodies name your private repos and quote their metadata. Default `ion-tracker`. |
 | `approval_sources` | `github_label` (default), `divan_bus`, `dashboard` (checkboxes on the Org health issue) |
 | `notifiers` | list of `stdout`, `file`, `divan_bus`, `github_issue`, `webhook` |
 | `llm.backend` | `none` (default), `claude_cli`, `anthropic_api` |
@@ -81,9 +81,9 @@ Keys worth knowing:
 | `quorum`, `quorum_by_kind` | approvals required per proposal |
 | `approval_ttl_days` | approvals expire (default 14) |
 | `budget.graphql_points_per_run` | collection stops cleanly when reached (default 500) |
-| `git_identity` | author of commits Mimar makes. No AI trailer unless `ai_attribution: true`. |
+| `git_identity` | author of commits Ion makes. No AI trailer unless `ai_attribution: true`. |
 
-Deployment configs (with your org's maintainers, bus addresses and paths) belong outside this repo, for example in `~/.mimar/mimar.yml` or in your private tracker repo.
+Deployment configs (with your org's maintainers, bus addresses and paths) belong outside this repo, for example in `~/.ion/ion.yml` or in your private tracker repo.
 
 ### Notifiers
 
@@ -99,12 +99,12 @@ A failed delivery is queued in the database and retried on the next run. A diges
 
 ## Approval flow
 
-1. Mimar files an issue `[P-0007] merge a into b` in the tracker repo, labelled `mimar:proposal`, `kind:<k>`, `state:<s>`. The body holds the evidence, the changesets in order, the exact commands the executor will run, the rollback, the blast radius and **`plan-sha256: <hash>`**. Mimar edits the body in place and never comments.
+1. Ion files an issue `[P-0007] merge a into b` in the tracker repo, labelled `ion:proposal`, `kind:<k>`, `state:<s>`. The body holds the evidence, the changesets in order, the exact commands the executor will run, the rollback, the blast radius and **`plan-sha256: <hash>`**. Ion edits the body in place and never comments.
 2. A maintainer decides in one of three ways:
-   - adds `mimar:approved`, `mimar:rejected` or `mimar:hold`. Mimar reads the issue **timeline** and takes the actor of the label event. A decision label from anyone who is not a maintainer (for the repos involved) is recorded as ignored and **taken off again** (one API call, no comment);
-   - sends a Divan Bus message `mimar approve|reject|hold P-0007` (optionally `plan-sha256:<prefix>`) from a seat in `bus.maintainer_seats`, after its signature is verified. Mimar mirrors the decision onto the issue as the label, so the record lives on GitHub;
-   - ticks the approve or hold box on the **Org health** issue (`approval_sources: [dashboard]`). Mimar reads that issue's edit history and accepts the tick only if every edit since its own last write was made by a maintainer; an edit it cannot attribute fails closed.
-3. **An approval counts only for the plan the approver saw.** Mimar records which plan hash was on display just before each decision. If the plan changes (different commands, or the score moves by 0.15 or more) the hash changes, the recorded approvals stop counting, `mimar:approved` and `mimar:hold` come off the issue, and approval is asked again. A decision made before any plan was displayed never counts.
+   - adds `ion:approved`, `ion:rejected` or `ion:hold`. Ion reads the issue **timeline** and takes the actor of the label event. A decision label from anyone who is not a maintainer (for the repos involved) is recorded as ignored and **taken off again** (one API call, no comment);
+   - sends a Divan Bus message `ion approve|reject|hold P-0007` (optionally `plan-sha256:<prefix>`) from a seat in `bus.maintainer_seats`, after its signature is verified. Ion mirrors the decision onto the issue as the label, so the record lives on GitHub;
+   - ticks the approve or hold box on the **Org health** issue (`approval_sources: [dashboard]`). Ion reads that issue's edit history and accepts the tick only if every edit since its own last write was made by a maintainer; an edit it cannot attribute fails closed.
+3. **An approval counts only for the plan the approver saw.** Ion records which plan hash was on display just before each decision. If the plan changes (different commands, or the score moves by 0.15 or more) the hash changes, the recorded approvals stop counting, `ion:approved` and `ion:hold` come off the issue, and approval is asked again. A decision made before any plan was displayed never counts.
 4. Approvals expire after `approval_ttl_days` (the label comes off too). `quorum` distinct approvers are needed (per kind if set).
 5. Rejected proposals are suppressed for `cooldown_days` unless the score rises by 0.15.
 6. Archiving is never automatic: it always needs its own approval, whatever the policy actions say.
@@ -115,38 +115,38 @@ A candidate must persist across `persist_runs` collection snapshots before it be
 
 Per repo pair: cross-references (manifests, imports, git URLs, README links), duplicated code (identical blobs plus MinHash near-duplicates over normalised lines, ignoring vendored, lock and generated files), co-change, shared dependency set, shared name prefix. They combine as a noisy-or with weights `0.6, 0.6, 0.6, 0.3, 0.05`. One saturated signal alone reaches exactly 0.6, the merge threshold. Public/private pairs are flagged as a visibility decision.
 
-- **Co-change** is shared revisions divided by the average number of revisions of the two repos. A revision is a day with a kept commit. Commits touching more than `max_changeset_size` files, commits by bots and commits by Mimar's own git identity are left out; a repo needs `min_revs` revisions and a pair `min_shared_revs` shared ones. Co-change is half-weighted unless a content signal agrees, because one person working on several repos on the same days proves little.
+- **Co-change** is shared revisions divided by the average number of revisions of the two repos. A revision is a day with a kept commit. Commits touching more than `max_changeset_size` files, commits by bots and commits by Ion's own git identity are left out; a repo needs `min_revs` revisions and a pair `min_shared_revs` shared ones. Co-change is half-weighted unless a content signal agrees, because one person working on several repos on the same days proves little.
 - **Name prefix** counts only when another signal is at least 0.15, with a small weight. Repos named `protean-*` share a prefix because of a naming scheme.
 
 ## Commands
 
 ```
-mimar collect | analyze | propose [--dry-run] | sync-approvals | execute [--apply] [P-0007]
-mimar report | run [--apply] | status | explain P-0007 | pause | resume | doctor
-mimar grep PATTERN [--path GLOB] [--repo GLOB] [-i] [-F]
-mimar autofix [NAME] [--repo GLOB] [--propose]
-mimar plan-config NEW.yml            (or --set key=value ...)
-mimar dashboard [--print]
+ion collect | analyze | propose [--dry-run] | sync-approvals | execute [--apply] [P-0007]
+ion report | run [--apply] | status | explain P-0007 | pause | resume | doctor
+ion grep PATTERN [--path GLOB] [--repo GLOB] [-i] [-F]
+ion autofix [NAME] [--repo GLOB] [--propose]
+ion plan-config NEW.yml            (or --set key=value ...)
+ion dashboard [--print]
 ```
 
 `run` is the whole pipeline and what the scheduler calls. Executors dry-run unless `--apply` is given.
 
-- `mimar grep` searches the default branch of every mirrored repo with `git grep`. No API calls.
-- `mimar autofix` lists the autofixers; `mimar autofix NAME` prints the diffs it would make (nothing is written anywhere); `--propose` files one proposal for them. PRs are opened only by the executor, after a maintainer approves exactly those diffs. Write your own by subclassing `mimar.fleet.Autofixer`, calling `register`, and naming the module under `autofix.plugins` in the config.
-- `mimar plan-config` compares the current config with a new one over the same snapshot: candidates gained and lost, policy drift, repos that would opt out, lifecycle changes, boundary violations, open proposals that would be re-planned. It writes nothing.
+- `ion grep` searches the default branch of every mirrored repo with `git grep`. No API calls.
+- `ion autofix` lists the autofixers; `ion autofix NAME` prints the diffs it would make (nothing is written anywhere); `--propose` files one proposal for them. PRs are opened only by the executor, after a maintainer approves exactly those diffs. Write your own by subclassing `ion.fleet.Autofixer`, calling `register`, and naming the module under `autofix.plugins` in the config.
+- `ion plan-config` compares the current config with a new one over the same snapshot: candidates gained and lost, policy drift, repos that would opt out, lifecycle changes, boundary violations, open proposals that would be re-planned. It writes nothing.
 
 ## Safety model
 
 - **Approval before structure.** Every executor's `apply` calls one gate first (also for dry runs). It refuses unless the proposal has a verified approval *for its current plan hash*, or is a `policy_fix` or `health_fix` whose class has action level `fix` in a governed repo. A status flag in the database is not approval: the gate re-derives it from recorded, maintainer-verified approvals, the epoch, the plan hash, quorum and TTL. Archive, merge, split and the rest can never be unattended.
-- **Typed writes with caps.** Nothing but `mimar/writes.py` calls a mutating GitHub API (a test enforces this). Each request is schema-validated, counted against a per-type cap for the run, checked by the breaker and logged in `write_log`. A request over its cap is deferred to the next run, not failed. Pushes must target `mimar/*` branches, never the default branch.
-- **Circuit breaker.** Before an `--apply` run writes anything, a preflight adds up its blast radius; every write is checked again in flight. More than a quarter of the repos, more than 2 archives, any branch-protection change that is weaker than the current rule, or more than 150 writes: the run stops, says so in the digest, and records the trip (`mimar status`).
-- **Kill switch.** `mimar pause` (creates `~/.mimar/PAUSED`) or `paused: true` stops every executor and all tracker writes. Reads still work.
+- **Typed writes with caps.** Nothing but `ion/writes.py` calls a mutating GitHub API (a test enforces this). Each request is schema-validated, counted against a per-type cap for the run, checked by the breaker and logged in `write_log`. A request over its cap is deferred to the next run, not failed. Pushes must target `ion/*` branches, never the default branch.
+- **Circuit breaker.** Before an `--apply` run writes anything, a preflight adds up its blast radius; every write is checked again in flight. More than a quarter of the repos, more than 2 archives, any branch-protection change that is weaker than the current rule, or more than 150 writes: the run stops, says so in the digest, and records the trip (`ion status`).
+- **Kill switch.** `ion pause` (creates `~/.ion/PAUSED`) or `paused: true` stops every executor and all tracker writes. Reads still work.
 - **Nothing irreversible.** No deletes of repos, branches or history. Archive instead of delete. No force push, ever: a guard rejects `--force`, `-f`, `--force-with-lease`, `+refspec`, `:ref` deletes and branch deletion in any git call the executors make.
-- **History kept and verified exactly.** Merge uses `git subtree add` without `--squash` and checks that the target's `HEAD:<prefix>` tree equals the source tip's tree and that the tip is an ancestor of the result. Split and move use `git filter-repo` on a fresh clone and check the commit map (every source commit touching the moved paths has a counterpart) and tree equality before anything is removed from the source. Counting commits is not a check. Rewritten commits carry `Mimar-Origin: <org>/<repo>@<sha>`; the merge commit carries `Mimar-Proposal` and `Mimar-Origin`.
+- **History kept and verified exactly.** Merge uses `git subtree add` without `--squash` and checks that the target's `HEAD:<prefix>` tree equals the source tip's tree and that the tip is an ancestor of the result. Split and move use `git filter-repo` on a fresh clone and check the commit map (every source commit touching the moved paths has a counterpart) and tree equality before anything is removed from the source. Counting commits is not a check. Rewritten commits carry `Ion-Origin: <org>/<repo>@<sha>`; the merge commit carries `Ion-Proposal` and `Ion-Origin`.
 - **Ordered changesets.** A dependent step (the pointer PR, the removal PR, the archive) refuses to run until the PR or step before it has landed.
 - **Archive is a separate approval** after a merge (`archive_requires_second_approval`, default true).
-- **Ledger.** Every step writes a `before` and an `after` row, so a failed run resumes without repeating finished steps (`mimar explain P-0007` shows it).
-- **Low noise.** Issues are edited in place. Mimar never comments on other repos and opens PRs only for real changes. A maintainer merges them; Mimar never merges its own PRs.
+- **Ledger.** Every step writes a `before` and an `after` row, so a failed run resumes without repeating finished steps (`ion explain P-0007` shows it).
+- **Low noise.** Issues are edited in place. Ion never comments on other repos and opens PRs only for real changes. A maintainer merges them; Ion never merges its own PRs.
 - **Gentle on the API.** Metadata is GraphQL with a points budget per run. Contents come from local mirrors.
 - **Untrusted text.** Repo names, descriptions and file contents given to an LLM are marked as data. LLM output is schema-validated, may only lower confidence, cannot add repos, and the plan shown to maintainers always comes from the executor, not the model.
 - Tokens come from `gh` and are never put on a command line or in logs; git uses a credential helper that calls `gh auth token` at run time.
@@ -168,20 +168,20 @@ uv run python scripts/check_licenses.py     # the licence allowlist; also run by
 
 ## Deployment
 
-Phase 1 is a LaunchAgent on a Mac. `deploy/install.sh` renders `deploy/ai.aska.mimar.plist` into `~/Library/LaunchAgents` and **does not load it**:
+Phase 1 is a LaunchAgent on a Mac. `deploy/install.sh` renders `deploy/ai.aska.ion.plist` into `~/Library/LaunchAgents` and **does not load it**:
 
 ```sh
-deploy/install.sh ~/.mimar/mimar.yml
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.aska.mimar.plist
+deploy/install.sh ~/.ion/ion.yml
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.aska.ion.plist
 ```
 
-It runs `mimar run` daily at 06:30 and logs to `~/.mimar/mimar.log`. The shipped plist runs executors as dry runs; add `--apply` after `run` once you trust the proposals. Keep the source outside `~/Documents` (macOS privacy prompts).
+It runs `ion run` daily at 06:30 and logs to `~/.ion/ion.log`. The shipped plist runs executors as dry runs; add `--apply` after `run` once you trust the proposals. Keep the source outside `~/Documents` (macOS privacy prompts).
 
 Phase 2 (when cost or uptime justify it): a GitHub App identity and a GitHub Actions schedule with `llm.backend: anthropic_api`. Only config changes.
 
 ## Prior art and credits
 
-Mimar's designs stand on published work by other projects. **No code was copied from any of them**; the ideas were re-implemented from their documentation and described behaviour. Nothing is vendored (see `THIRD_PARTY.md`). Names and marks belong to their owners, and none is used as a Mimar feature name.
+Ion's designs stand on published work by other projects. **No code was copied from any of them**; the ideas were re-implemented from their documentation and described behaviour. Nothing is vendored (see `THIRD_PARTY.md`). Names and marks belong to their owners, and none is used as a Ion feature name.
 
 | Project | Licence | Idea taken |
 |---|---|---|
@@ -216,11 +216,11 @@ Licences were checked on 2026-10-13 against each project's LICENSE file. If you 
 
 Contributions are welcome. Read `CONTRIBUTING.md` first; the short version:
 
-- Mimar is Apache-2.0. **Do not copy code from other projects.** Re-implement ideas in your own words and credit them in the table above. If you ever vendor code, it must be MIT, BSD, Apache-2.0 or ISC, recorded in `THIRD_PARTY.md` with the upstream commit and the licence text.
+- Ion is Apache-2.0. **Do not copy code from other projects.** Re-implement ideas in your own words and credit them in the table above. If you ever vendor code, it must be MIT, BSD, Apache-2.0 or ISC, recorded in `THIRD_PARTY.md` with the upstream commit and the licence text.
 - Never add a GPL, LGPL or AGPL dependency (`scripts/check_licenses.py` fails the build).
 - Every change needs tests (`uv run pytest -q`), and anything that writes to GitHub must go through a typed write request.
 - Report security problems privately, see `SECURITY.md`. Be kind, see `CODE_OF_CONDUCT.md`.
 
 ## Licence
 
-Copyright 2026 ASKA Business Solutions and the Mimar contributors. Apache-2.0, see `LICENSE` and `NOTICE`. Dependencies are listed in `THIRD_PARTY.md`.
+Copyright 2026 ASKA Business Solutions and the Ion contributors. Apache-2.0, see `LICENSE` and `NOTICE`. Dependencies are listed in `THIRD_PARTY.md`.

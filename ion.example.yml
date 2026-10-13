@@ -1,0 +1,54 @@
+# Generic Ion configuration. Copy to ion.yml (or pass --config) and edit.
+org: your-org                 # GitHub organisation to steward
+paused: false                 # kill switch; ~/.ion/PAUSED does the same
+maintainers: [your-login]     # people whose approval counts; per-repo override in <repo>/.github/ion.yml
+tracker_repo: ion-tracker   # proposals live here as issues. Keep it PRIVATE: bodies name private repos.
+plan: free                    # free | pro | team (free: private-repo protection is reported as blocked_by_plan)
+approval_sources: [github_label]   # github_label | divan_bus
+notifiers:                    # stdout | file | divan_bus | github_issue | webhook
+  - {type: stdout}
+  # - {type: file, path: ~/.ion/digest.log}
+  # - {type: webhook, url_env: ION_WEBHOOK_URL}     # Slack/Discord compatible
+  # - {type: github_issue, number: 1}                  # edits that issue's body in the tracker repo
+  # - {type: divan_bus, to: some-seat}
+# bus:                        # only needed for divan_bus approvals or notifier
+#   client: /path/to/divan.py
+#   python: /path/to/python
+#   url: http://127.0.0.1:8787
+#   seat: ion
+#   maintainer_seats: [some-seat]
+llm: {backend: none, model_default: haiku, model_structural: sonnet, max_calls_per_run: 20}
+budget: {graphql_points_per_run: 500}
+policy:
+  default_branch: main
+  branch_protection:
+    require_pr: true
+    required_approvals: 0
+    allow_force_pushes: false
+    allow_deletions: false
+    enforce_admins: false
+  dependabot_alerts: true
+  secret_scanning: public_only
+  required_files: [README.md, LICENSE]
+auto_apply: []                # legacy: classes Ion may fix without approval (same as policy_actions: {<class>: fix})
+policy_actions: {}            # per policy class: log (record only) | issue (propose, needs approval) | fix (auto-apply)
+                              # classes: branch_protection, dependabot_alerts, secret_scanning, required_files
+policy_strategy: opt-out      # opt-out: all repos governed unless `enabled: false` in <repo>/.github/ion.yml; opt-in: the reverse
+guards:                       # circuit breaker for one run
+  max_repo_fraction: 0.25     # stop if writes would touch more than this share of repos
+  max_archives: 2
+  forbid_protection_lowering: true
+# writes: {caps: {open_pr: 5, archive_repo: 1}}   # per-run caps by write type (these are the defaults)
+# boundaries:                 # tag-based architecture rules; tags are GitHub topics
+#   rules: [{from: "scope:app", allow: ["scope:app", "layer:shared"]}]
+# lifecycle: {dormant_days: 90, frozen: [some-repo]}   # stale -> dormant -> archive-proposed; topic ion-frozen exempts
+thresholds:
+  merge_coupling: 0.6
+  split_cohesion_gap: 0.5
+  stale_days: 180
+  persist_runs: 2
+  cooldown_days: 60
+approval_ttl_days: 14
+archive_requires_second_approval: true
+exclude: []
+git_identity: {name: "ion", email: "ion@example.com"}

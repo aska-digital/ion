@@ -1,6 +1,6 @@
-from mimar.analyze import run_analyze
-from mimar.analyze import health, minhash, policy
-from mimar.analyze.coupling import combine, parse_deps, prefix_signal
+from ion.analyze import run_analyze
+from ion.analyze import health, minhash, policy
+from ion.analyze.coupling import combine, parse_deps, prefix_signal
 from conftest import code
 
 

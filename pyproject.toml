@@ -1,5 +1,5 @@
 [project]
-name = "mimar"
+name = "ion"
 version = "0.1.0"
 description = "Steward bot for the aska-digital GitHub org"
 requires-python = ">=3.12"
@@ -11,7 +11,7 @@ dependencies = ["pyyaml>=6", "jsonschema>=4"]
 graph = ["networkx>=3"]
 
 [project.scripts]
-mimar = "mimar.cli:main"
+ion = "ion.cli:main"
 
 [dependency-groups]
 dev = ["pytest>=8", "networkx>=3"]
@@ -21,7 +21,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["mimar"]
+packages = ["ion"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

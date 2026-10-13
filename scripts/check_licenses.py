@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fail if any dependency's licence is outside the allowlist.
 
-Mimar is Apache-2.0 and may only depend on permissively licensed code: MIT, BSD, Apache-2.0, ISC, PSF and MPL-2.0
+Ion is Apache-2.0 and may only depend on permissively licensed code: MIT, BSD, Apache-2.0, ISC, PSF and MPL-2.0
 (the last as an unmodified dependency). This script has no dependencies of its own and runs anywhere Python 3.11+ does:
 
     uv run python scripts/check_licenses.py            # the declared dependencies and everything they pull in
@@ -175,7 +175,7 @@ def check(dists: dict[str, object]) -> list[dict]:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--all", action="store_true", help="check every installed distribution, not only Mimar's closure")
+    ap.add_argument("--all", action="store_true", help="check every installed distribution, not only Ion's closure")
     ap.add_argument("--pyproject", default=str(Path(__file__).resolve().parent.parent / "pyproject.toml"))
     args = ap.parse_args(argv)
     pyproject = Path(args.pyproject)
@@ -186,7 +186,7 @@ def main(argv=None) -> int:
         missing: list[str] = []
     else:
         dists, missing = closure(roots)
-    dists.pop("mimar", None)                                  # ourselves
+    dists.pop("ion", None)                                  # ourselves
     rows = check(dists)
     width = max((len(r["name"]) for r in rows), default=10)
     for r in rows:
