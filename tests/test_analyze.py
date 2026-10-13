@@ -63,6 +63,16 @@ def test_policy_drift_and_plan_limits(collected):
     assert pol[("alpha-core", "required_file:README.md")] == "ok"
 
 
+def test_policy_secret_scanning_private_repo_on_paid_plan_is_unknown(collected):
+    snap = {"name": "r", "private": True, "fork": False, "archived": False, "default_branch": "main",
+            "protection": [], "vuln_enabled": True}
+    paid = dict(collected.cfg)
+    paid["plan"] = "team"
+    fs = policy.check(snap, {"README.md"}, paid, None)
+    ss = [f for f in fs if f["class"] == "secret_scanning"]
+    assert len(ss) == 1 and ss[0]["status"] == "unknown"
+
+
 def test_policy_per_repo_override_changes_requirements(collected):
     snap = {"name": "r", "private": False, "fork": False, "archived": False, "default_branch": "main", "protection": [],
             "vuln_enabled": True, "secret_scanning": "enabled"}

@@ -107,9 +107,12 @@ def mirror_label(ctx, p: dict, action: str) -> None:
     n = p.get("issue_number")
     if not n or ctx.cfg.is_paused():
         return
-    ctx.writes.tracker("add_label", number=int(n), labels=[label])
-    events = ctx.gh.paginate(f"{tracker.repo_path(ctx)}/issues/{n}/timeline")
-    mine = [e for e in events if e.get("event") == "labeled" and (e.get("label") or {}).get("name") == label]
+    path = f"{tracker.repo_path(ctx)}/issues/{n}/timeline"
+    before = {str(e.get("id")) for e in ctx.gh.paginate(path)}   # a maintainer's own label event must never be
+    ctx.writes.tracker("add_label", number=int(n), labels=[label])  # mistaken for the one mimar just added
+    events = ctx.gh.paginate(path)
+    mine = [e for e in events if e.get("event") == "labeled" and (e.get("label") or {}).get("name") == label
+            and str(e.get("id")) not in before]
     if mine:
         last = max(mine, key=lambda e: e.get("created_at") or "")
         ctx.db.x("insert or ignore into mirrored_labels(proposal,label,event_id) values(?,?,?)", (p["id"], label, str(last.get("id"))))

@@ -194,11 +194,14 @@ class Executor:
         brand new empty repo."""
         full = ["push", *argv_tail]
         refs = [a for a in argv_tail if not a.startswith("-")]
-        dest = ""
-        for r in refs[1:]:
-            dest = r.split(":")[-1].replace("refs/heads/", "")
+        dests = [r.split(":")[-1].replace("refs/heads/", "") for r in refs[1:]]
+        for dest in dests:
             if default_branch and dest == default_branch and not allow_default:
                 raise SafetyError(f"refusing to push to default branch {default_branch}")
+            if not dest.startswith("mimar/") and not allow_default:
+                # the broker only sees the last refspec, so every destination is checked here
+                raise SafetyError(f"refusing to push to non-mimar branch {dest}")
+        dest = dests[-1] if dests else ""
         req = WriteRequest("push_branch", repo or "unknown", {"branch": dest, "base": default_branch or "main",
                                                                **({"initial": True} if allow_default else {})})
         self.ctx.writes.submit(req, lambda: self.g(full, cwd=cwd))

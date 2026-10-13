@@ -34,6 +34,10 @@ def test_invalid_config_rejected():
         load_config(None, {"org": "o", "auto_apply": ["delete_repos"]})
     with pytest.raises(ConfigError):
         load_config(None, {"org": "o", "notifiers": [{"type": "pager"}]})
+    with pytest.raises(ConfigError):   # a typo here used to crash mid-run in lowers_protection
+        load_config(None, {"org": "o", "policy": {"branch_protection": {"required_approvals": "many"}}})
+    with pytest.raises(ConfigError):
+        load_config(None, {"org": "o", "policy": {"branch_protection": {"require_pr": "yes"}}})
     with pytest.raises(ConfigError):
         load_config(None, {"org": None}).org
 

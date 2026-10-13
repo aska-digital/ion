@@ -1,7 +1,11 @@
 """Batched GraphQL collection of org repo metadata."""
 from __future__ import annotations
 
+import logging
+
 from ..ghclient import GH
+
+log = logging.getLogger("mimar")
 
 QUERY = """
 query($org: String!, $after: String, $n: Int!, $page: Int!) {
@@ -27,7 +31,6 @@ query($org: String!, $after: String, $n: Int!, $page: Int!) {
         vulnerabilityAlerts(first: 1, states: OPEN) { totalCount }
         branchProtectionRules(first: 10) { nodes { pattern requiresApprovingReviews requiredApprovingReviewCount
           allowsForcePushes allowsDeletions isAdminEnforced } }
-        collaborators(first: 20) { nodes { login } }
         mimarYml: object(expression: "HEAD:.github/mimar.yml") { ... on Blob { text } }
         parent { nameWithOwner pushedAt }
       }
@@ -66,8 +69,6 @@ def normalise(node: dict) -> dict:
         "vuln_alerts": ((node.get("vulnerabilityAlerts") or {}).get("totalCount")),
         "vuln_enabled": node.get("hasVulnerabilityAlertsEnabled"),
         "protection": (node.get("branchProtectionRules") or {}).get("nodes") or [],
-        "collaborators": [c["login"] for c in ((node.get("collaborators") or {}).get("nodes") or [])]
-        if node.get("collaborators") else None,
         "override_text": (node.get("mimarYml") or {}).get("text"),
         "parent": node.get("parent"),
         "commits": _commits(node),
@@ -113,7 +114,8 @@ def fetch_security_extras(gh: GH, org: str, snap: dict) -> dict | None:
     """Secret scanning status is not in GraphQL; one REST read per public non-fork repo."""
     try:
         data = gh.rest("GET", f"/repos/{org}/{snap['name']}")
-    except Exception:
+    except Exception as e:
+        log.warning("security extras for %s unreadable: %s", snap["name"], e)
         return None
     sa = (data or {}).get("security_and_analysis")
     if sa is None:

@@ -71,7 +71,13 @@ SCHEMA = {
             "backend": {"enum": ["claude_cli", "anthropic_api", "none"]},
             "max_calls_per_run": {"type": "integer", "minimum": 0}}},
         "budget": {"type": "object", "properties": {"graphql_points_per_run": {"type": "integer", "minimum": 1}}},
-        "policy": {"type": "object"},
+        "policy": {"type": "object", "properties": {
+            "default_branch": {"type": "string"},
+            # a typo here used to crash mid-run in lowers_protection; fail fast at load instead
+            "branch_protection": {"type": "object", "properties": {
+                "require_pr": {"type": "boolean"}, "required_approvals": {"type": "integer", "minimum": 0},
+                "allow_force_pushes": {"type": "boolean"}, "allow_deletions": {"type": "boolean"},
+                "enforce_admins": {"type": "boolean"}}}}},
         "auto_apply": {"type": "array", "items": {"enum": ["branch_protection", "dependabot_alerts", "secret_scanning",
                                                            "health_fix"]}},
         "policy_actions": {"type": "object", "additionalProperties": {"enum": ["log", "issue", "fix"]},

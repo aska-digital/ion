@@ -30,9 +30,25 @@ def test_budget_stops_cleanly(tmp_path, home, world):
 
 
 def test_normalise_handles_missing_optional_fields():
-    n = github.normalise({"name": "x", "isPrivate": True, "isFork": False, "isArchived": False, "collaborators": None,
+    n = github.normalise({"name": "x", "isPrivate": True, "isFork": False, "isArchived": False,
                           "defaultBranchRef": None})
-    assert n["collaborators"] is None and n["commits"] == [] and n["default_branch"] is None
+    assert "collaborators" not in n and n["commits"] == [] and n["default_branch"] is None
+
+
+def test_collect_query_does_not_request_unused_collaborators():
+    assert "collaborators" not in github.QUERY
+
+
+def test_fetch_security_extras_logs_api_errors(caplog):
+    import logging
+
+    class BoomGH:
+        def rest(self, *a, **k):
+            raise RuntimeError("403 Forbidden")
+
+    with caplog.at_level(logging.WARNING, logger="mimar"):
+        assert github.fetch_security_extras(BoomGH(), "acme", {"name": "x"}) is None
+    assert "security extras for x unreadable" in caplog.text
 
 
 def test_override_file_parsed(tmp_path, home, world):

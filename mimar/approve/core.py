@@ -60,7 +60,8 @@ def evaluate(ctx, p: dict, ignore_ttl: bool = False, at: dt.datetime | None = No
     approvers = {}
     for (src, actor), v in actions.items():
         if v["action"] == "approve" and (src == "divan_bus" or actor.lower() in maint):
-            approvers[actor] = v["event_ts"]
+            # one person, one vote: a bus seat and a GitHub login that differ only by case are the same approver
+            approvers[actor.lower()] = v["event_ts"]
     need = quorum_for(cfg, p["kind"])
     if len(approvers) < need:
         why = f"{len(approvers)}/{need} approvals"

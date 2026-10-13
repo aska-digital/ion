@@ -240,6 +240,26 @@ def test_readme_skeleton_finds_repos_without_readme(collected, world, tmp_path):
     assert "+# mono" in d["mono"] and "TODO: describe" in d["mono"]
 
 
+def test_preview_cleans_workdir_when_fixer_raises(collected):
+    class Boom(Autofixer):
+        name = "boom-test"
+        description = "x"
+        commit_message = "t"
+        pr_title = "t"
+        pr_body = "t"
+
+        def find_repos(self, ctx, repos):
+            return ["old-tool"]
+
+        def apply(self, workdir, repo, snap):
+            raise RuntimeError("boom")
+
+    root = collected.work_dir("preview") / "boom-test"
+    with pytest.raises(RuntimeError, match="boom"):
+        preview(collected, Boom())
+    assert not root.exists()
+
+
 # ---- feature 9: plan-config ---------------------------------------------------------------------
 
 def analysed(ctx):

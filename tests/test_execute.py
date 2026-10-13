@@ -119,6 +119,13 @@ def test_safe_push_refuses_default_branch(ctx, tmp_path):
         ex.safe_push(["origin", "mimar/x:refs/heads/main"], tmp_path, "main")
 
 
+def test_safe_push_checks_every_refspec_not_just_the_last(ctx, tmp_path, monkeypatch):
+    ex = executor_for(ctx, "merge")
+    monkeypatch.setattr(ex, "g", lambda *a, **k: (_ for _ in ()).throw(AssertionError("git must not run")))
+    with pytest.raises(SafetyError, match="non-mimar"):
+        ex.safe_push(["origin", "docs:refs/heads/docs", "mimar/x:refs/heads/mimar/x"], tmp_path, "main")
+
+
 # ---- merge: dry run + end to end ---------------------------------------------------------
 
 def test_merge_dry_run_shows_exact_commands(ctx):

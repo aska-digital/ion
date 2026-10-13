@@ -176,3 +176,37 @@ def test_bus_down_is_reported_not_fatal(tmp_path, home, world):
     setup(ctx)
     r = sync_approvals(ctx)
     assert r["errors"] and "bus" in r["errors"][0]
+
+
+def test_quorum_counts_case_variants_as_one_approver(tmp_path, home, world):
+    ctx = make_ctx(tmp_path, world, {"quorum": 2, "maintainers": ["mozi"],
+                                     "approval_sources": ["github_label", "divan_bus"],
+                                     "bus": {"maintainer_seats": ["Mozi"]}})
+    p = setup(ctx)
+    ctx.db.set_state(p["id"], hash_log=[["2026-01-01T00:00:00Z", p["plan_hash"]]])
+    core.record(ctx.db, p["id"], "divan_bus", "Mozi", "approve", FUTURE, "e1", True)
+    core.record(ctx.db, p["id"], "github_label", "mozi", "approve", FUTURE, "e2", True)
+    ev = core.evaluate(ctx, proposals.get(ctx.db, p["id"]))
+    assert ev["state"] == "awaiting" and ev["approvers"] == ["mozi"]
+
+
+def test_bus_envelope_without_seq_does_not_break_sync(tmp_path, home, world):
+    bus = FakeBus()
+    ctx = bus_ctx(tmp_path, world, bus)
+    p = setup(ctx)
+    m = msg(1, "saga-divan", f"mimar approve {p['id']}")
+    m["seq"] = None
+    bus.inbox = [m]
+    r = sync_approvals(ctx)
+    assert status(ctx, p) == "approved" and not r["errors"]
+
+
+def test_mirror_label_does_not_swallow_maintainer_event(tmp_path, home, world):
+    bus = FakeBus()
+    ctx = bus_ctx(tmp_path, world, bus, approval_sources=["github_label", "divan_bus"], quorum=2,
+                  maintainers=["maint"])
+    p = setup(ctx)
+    ctx.gh.add_label_event(p["issue_number"], "mimar:approved", "maint", ts="2099-01-02T00:00:00Z")
+    bus.inbox = [msg(1, "saga-divan", f"mimar approve {p['id']}")]
+    sync_approvals(ctx)
+    assert status(ctx, p) == "approved"
