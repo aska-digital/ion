@@ -214,11 +214,13 @@ class MoveCodeExecutor(Executor):
                 return "merged"
 
             def edit():
+                note = self.removal_base(p, "add.verify-filter", sdir, s_url, sb, [D], T)
                 self.g(["checkout", "-q", "-B", branch, f"origin/{sb}"], cwd=sdir)
                 self.g(["rm", "-r", "-q", D], cwd=sdir)
                 (Path(sdir) / "MOVED.md").write_text(f"# Moved\n\n`{D}` now lives in {self.cfg.org}/{T} under `{dest}/`.\n")
                 self.g(["add", "MOVED.md"], cwd=sdir)
                 self.commit(sdir, f"Remove {D}; moved to {T} ({pid})")
+                return note
 
             def pr():
                 dep = changesets.depends_on_line(self.ctx, self.fresh(pid), "remove")

@@ -106,6 +106,7 @@ class SplitExecutor(Executor):
         branch = f"ion/{pid}-remove"
 
         def edit():
+            note = self.removal_base(p, "create.verify", w, url, base, dirs, N)
             self.g(["checkout", "-q", "-B", branch, f"origin/{base}"], cwd=w)
             self.g(["rm", "-r", "-q", *dirs], cwd=w)
             (Path(w) / "MOVED.md").write_text(
@@ -113,6 +114,7 @@ class SplitExecutor(Executor):
                 f"[{self.cfg.org}/{N}](https://github.com/{self.cfg.org}/{N}) with their full history.\n")
             self.g(["add", "MOVED.md"], cwd=w)
             self.commit(w, f"Remove {', '.join(dirs)}; moved to {N} ({pid})")
+            return note
 
         def pr():
             n = self.open_pr(A, branch, base, f"Remove {', '.join(dirs)}; moved to {N} [{pid}]",

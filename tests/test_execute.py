@@ -282,6 +282,54 @@ def test_split_verify_failure_stops_before_removal(ctx, world, monkeypatch):
     assert not any(b.endswith("-remove") for b in branches(world, "mono"))
 
 
+def late_commit(world, tmp_path, path):
+    """A developer lands work in mono after ion verified the move."""
+    dev = tmp_path / "dev"
+    if not dev.exists():
+        sh("git", "clone", "-q", str(world / "mono.git"), str(dev))
+    (dev / path).parent.mkdir(parents=True, exist_ok=True)
+    (dev / path).write_text("late work\n")
+    sh("git", "add", "-A", cwd=dev); sh("git", "commit", "-qm", f"late {path}", cwd=dev)
+    sh("git", "push", "-q", "origin", "HEAD:main", cwd=dev)
+
+
+def forget_verified_commit(ctx, pid, key):
+    """Make a ledger row look like one written before the verified source commit was recorded."""
+    import json
+    d = json.loads(ctx.db.ledger_detail(pid, key))
+    d.pop("source_commit", None)
+    ctx.db.x("update ledger set detail=? where proposal=? and step=? and phase='after'", (json.dumps(d), pid, key))
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+def test_split_removal_refuses_when_moved_dirs_changed_after_verify(ctx, world, tmp_path, legacy):
+    p = prep(ctx, "split", SPLIT)
+    ex, pid = executor_for(ctx, "split"), p["id"]
+    ex.apply(p, dry_run=False)
+    if legacy:
+        forget_verified_commit(ctx, pid, "create.verify")
+    late_commit(world, tmp_path, "engine_utils/late.py")
+    with pytest.raises(SafetyError, match="changed in the source after verification"):
+        ex.apply(proposals.get(ctx.db, pid), dry_run=False)
+    assert f"ion/{pid}-remove" not in branches(world, "mono") and not ctx.gh.writes_to("POST", "/repos/acme/mono/pulls")
+    assert proposals.get(ctx.db, pid)["status"] == "failed"
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+def test_split_removal_proceeds_when_only_other_paths_changed(ctx, world, tmp_path, legacy):
+    p = prep(ctx, "split", SPLIT)
+    ex, pid = executor_for(ctx, "split"), p["id"]
+    ex.apply(p, dry_run=False)
+    if legacy:
+        forget_verified_commit(ctx, pid, "create.verify")
+    late_commit(world, tmp_path, "site/late.py")
+    ex.apply(proposals.get(ctx.db, pid), dry_run=False)
+    removed = sh("git", "--git-dir", str(world / "mono.git"), "ls-tree", "-r", "--name-only", f"ion/{pid}-remove").split()
+    assert "site/late.py" in removed and not any(t.startswith("engine") for t in removed)   # built on the current tip
+    assert ("older run" if legacy else "no changes under engine") in ctx.db.ledger_detail(pid, "pointer.remove-dirs")
+    assert proposals.get(ctx.db, pid)["status"] == "done"
+
+
 # ---- others ---------------------------------------------------------------------------------
 
 def test_archive_executor_never_deletes(ctx):
@@ -312,6 +360,23 @@ def test_move_code_two_phase(ctx, world):
     ctx.gh.merged.add(("old-tool", 1))
     ex.apply(proposals.get(ctx.db, pid), dry_run=False)
     assert f"ion/{pid}-remove" in branches(world, "mono")
+
+
+@pytest.mark.parametrize("path,refused", [("site/late.py", True), ("engine/late.py", False)])
+def test_move_code_removal_checks_for_work_landed_after_verify(ctx, world, tmp_path, path, refused):
+    p = prep(ctx, "move_code", {"source": "mono", "dir": "site", "target": "old-tool", "dest_prefix": "site"})
+    ex, pid = executor_for(ctx, "move_code"), p["id"]
+    ex.apply(p, dry_run=False)
+    late_commit(world, tmp_path, path)
+    ctx.gh.merged.add(("old-tool", 1))
+    if refused:
+        with pytest.raises(SafetyError, match="old-tool lacks that work"):
+            ex.apply(proposals.get(ctx.db, pid), dry_run=False)
+        assert f"ion/{pid}-remove" not in branches(world, "mono") and proposals.get(ctx.db, pid)["status"] == "failed"
+    else:
+        ex.apply(proposals.get(ctx.db, pid), dry_run=False)
+        assert "no changes under site" in ctx.db.ledger_detail(pid, "remove.remove")
+        assert proposals.get(ctx.db, pid)["status"] == "done"
 
 
 def test_runner_dry_run_default_and_apply(ctx, world):
