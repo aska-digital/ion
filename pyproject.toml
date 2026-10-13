@@ -1,0 +1,28 @@
+[project]
+name = "mimar"
+version = "0.1.0"
+description = "Steward bot for the aska-digital GitHub org"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+dependencies = ["pyyaml>=6", "jsonschema>=4"]
+
+[project.optional-dependencies]
+graph = ["networkx>=3"]
+
+[project.scripts]
+mimar = "mimar.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "networkx>=3"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["mimar"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

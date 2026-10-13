@@ -1,0 +1,43 @@
+# Generic Mimar configuration. Copy to mimar.yml (or pass --config) and edit.
+org: your-org                 # GitHub organisation to steward
+paused: false                 # kill switch; ~/.mimar/PAUSED does the same
+maintainers: [your-login]     # people whose approval counts; per-repo override in <repo>/.github/mimar.yml
+tracker_repo: mimar-tracker   # proposals live here as issues. Keep it PRIVATE: bodies name private repos.
+plan: free                    # free | pro | team (free: private-repo protection is reported as blocked_by_plan)
+approval_sources: [github_label]   # github_label | divan_bus
+notifiers:                    # stdout | file | divan_bus | github_issue | webhook
+  - {type: stdout}
+  # - {type: file, path: ~/.mimar/digest.log}
+  # - {type: webhook, url_env: MIMAR_WEBHOOK_URL}     # Slack/Discord compatible
+  # - {type: github_issue, number: 1}                  # edits that issue's body in the tracker repo
+  # - {type: divan_bus, to: some-seat}
+# bus:                        # only needed for divan_bus approvals or notifier
+#   client: /path/to/divan.py
+#   python: /path/to/python
+#   url: http://127.0.0.1:8787
+#   seat: mimar
+#   maintainer_seats: [some-seat]
+llm: {backend: none, model_default: haiku, model_structural: sonnet, max_calls_per_run: 20}
+budget: {graphql_points_per_run: 500}
+policy:
+  default_branch: main
+  branch_protection:
+    require_pr: true
+    required_approvals: 0
+    allow_force_pushes: false
+    allow_deletions: false
+    enforce_admins: false
+  dependabot_alerts: true
+  secret_scanning: public_only
+  required_files: [README.md, LICENSE]
+auto_apply: []                # policy classes Mimar may fix without approval: branch_protection, dependabot_alerts, secret_scanning
+thresholds:
+  merge_coupling: 0.6
+  split_cohesion_gap: 0.5
+  stale_days: 180
+  persist_runs: 2
+  cooldown_days: 60
+approval_ttl_days: 14
+archive_requires_second_approval: true
+exclude: []
+git_identity: {name: "mimar", email: "mimar@example.com"}
