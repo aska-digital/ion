@@ -23,6 +23,29 @@ def test_mirror_skipped_when_pushed_at_unchanged(ctx):
     assert r2["mirrors"]["mono"] == "skipped"
 
 
+def test_latest_snapshots_drop_repos_absent_from_the_newest_complete_run(ctx):
+    from ion.collect import snapshot
+
+    def snap(name):
+        return {"name": name, "private": False, "archived": False}
+
+    r1 = snapshot.start_run(ctx.db)
+    snapshot.write_snapshot(ctx.db, r1, snap("old-name"))
+    snapshot.write_snapshot(ctx.db, r1, snap("keep"))
+    snapshot.finish_run(ctx.db, r1, 1, None, False, 2)
+    r2 = snapshot.start_run(ctx.db)                     # old-name was renamed to new-name
+    snapshot.write_snapshot(ctx.db, r2, snap("new-name"))
+    snapshot.write_snapshot(ctx.db, r2, snap("keep"))
+    snapshot.finish_run(ctx.db, r2, 1, None, False, 2)
+    snaps, gen = latest_snapshots(ctx.db)
+    assert set(snaps) == {"new-name", "keep"} and gen == r2
+    r3 = snapshot.start_run(ctx.db)                     # a partial run must not shrink the org view
+    snapshot.write_snapshot(ctx.db, r3, snap("keep"))
+    snapshot.finish_run(ctx.db, r3, 1, None, True, 1)
+    snaps, gen = latest_snapshots(ctx.db)
+    assert set(snaps) == {"new-name", "keep"} and gen == r2
+
+
 def test_budget_stops_cleanly(tmp_path, home, world):
     ctx = make_ctx(tmp_path, world, {"budget": {"graphql_points_per_run": 1}})
     r = run_collect(ctx)
