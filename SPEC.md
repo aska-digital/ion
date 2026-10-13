@@ -1,6 +1,6 @@
 # Ion: steward bot for a GitHub org (spec v2)
 
-*Ion* is Ottoman Turkish for architect (Ion Sinan built the empire's mosques). It watches every repo in an org and keeps the org in good shape. It suggests and carries out changes to how the org is laid out: merging repos, splitting them, archiving, renaming, moving code. It also keeps policy enforced. **It never makes a structural change without a maintainer's approval.**
+*Ion* is the org's steward bot (see "Why ion" in the README). It watches every repo in an org and keeps the org in good shape. It suggests and carries out changes to how the org is laid out: merging repos, splitting them, archiving, renaming, moving code. It also keeps policy enforced. **It never makes a structural change without a maintainer's approval.**
 
 v2 keeps the v1 pipeline and hardens it. What is new is marked *(v2)*. Section 9 lists every v2 change against the research survey it came from.
 
