@@ -2,10 +2,9 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from .. import proposals
-from ..util import SafetyError
+from ..util import SafetyError, safe_write
 from .. import changesets
 from ..writes import WriteRequest
 from .base import Executor, Plan, Step, filter_args
@@ -129,7 +128,7 @@ class HealthFixExecutor(Executor):
 
         def edit():
             self.g(["checkout", "-q", "-B", branch, f"origin/{base}"], cwd=w)
-            (Path(w) / "README.md").write_text(README_SKELETON.format(name=repo, description=snaps_desc))
+            safe_write(w, "README.md", README_SKELETON.format(name=repo, description=snaps_desc))
             self.g(["add", "README.md"], cwd=w)
             self.commit(w, f"Add README skeleton ({pid})")
 
@@ -216,7 +215,7 @@ class MoveCodeExecutor(Executor):
             def edit():
                 self.g(["checkout", "-q", "-B", branch, f"origin/{sb}"], cwd=sdir)
                 self.g(["rm", "-r", "-q", D], cwd=sdir)
-                (Path(sdir) / "MOVED.md").write_text(f"# Moved\n\n`{D}` now lives in {self.cfg.org}/{T} under `{dest}/`.\n")
+                safe_write(sdir, "MOVED.md", f"# Moved\n\n`{D}` now lives in {self.cfg.org}/{T} under `{dest}/`.\n")
                 self.g(["add", "MOVED.md"], cwd=sdir)
                 self.commit(sdir, f"Remove {D}; moved to {T} ({pid})")
 

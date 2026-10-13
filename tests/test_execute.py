@@ -1,14 +1,15 @@
+import os
 import subprocess
 
 import pytest
 
 from conftest import make_ctx, sh
-from helpers import MERGE, SPLIT, approve, new_proposal
+from helpers import MERGE, SPLIT, approve, new_proposal, outside, plant_symlink
 from ion import proposals
 from ion.collect import run_collect
 from ion.execute import executor_for
 from ion.execute.runner import run_execute
-from ion.util import Refused, SafetyError, guard_git
+from ion.util import Refused, SafetyError, guard_git, safe_write
 
 
 def prep(ctx, kind, subject, approved=True):
@@ -119,6 +120,18 @@ def test_safe_push_refuses_default_branch(ctx, tmp_path):
         ex.safe_push(["origin", "ion/x:refs/heads/main"], tmp_path, "main")
 
 
+def test_safe_write_refuses_symlinks_and_paths_outside_the_checkout(tmp_path):
+    root, out = tmp_path / "clone", outside(tmp_path)
+    root.mkdir()
+    os.symlink(out, root / ".github")
+    os.symlink(out / "victim.txt", root / "README.md")
+    for rel in (".github/dependabot.yml", "README.md", "../outside/victim.txt", str(out / "abs.md")):
+        with pytest.raises(SafetyError):
+            safe_write(root, rel, "x\n")
+    assert [f.name for f in out.iterdir()] == ["victim.txt"] and (out / "victim.txt").read_text() == "OPERATOR FILE\n"
+    assert safe_write(root, "docs/new/a.md", "ok\n").read_text() == "ok\n"
+
+
 # ---- merge: dry run + end to end ---------------------------------------------------------
 
 def test_merge_dry_run_shows_exact_commands(ctx):
@@ -214,6 +227,20 @@ def test_merge_refuses_when_prefix_exists(ctx, world):
     assert f"ion/{p['id']}" not in branches(world, "alpha-core")
 
 
+def test_merge_pointer_refuses_a_symlinked_readme(ctx, world, tmp_path):
+    out = outside(tmp_path)
+    plant_symlink(world, tmp_path, "alpha-cli", "README.md", str(out / "victim.txt"))
+    p = prep(ctx, "merge", MERGE)
+    ex = executor_for(ctx, "merge")
+    ex.apply(p, dry_run=False)
+    ctx.gh.merged.add(("alpha-core", 1))
+    ex.apply(proposals.get(ctx.db, p["id"]), dry_run=False)
+    with pytest.raises(SafetyError, match="symlink"):
+        ex.apply(proposals.get(ctx.db, p["id"]), dry_run=False)               # pointer phase
+    assert (out / "victim.txt").read_text() == "OPERATOR FILE\n"
+    assert f"ion/{p['id']}-pointer" not in branches(world, "alpha-cli")
+
+
 # ---- split --------------------------------------------------------------------------------
 
 def test_split_dry_run_shows_filter_repo(ctx):
@@ -282,6 +309,18 @@ def test_split_verify_failure_stops_before_removal(ctx, world, monkeypatch):
     assert not any(b.endswith("-remove") for b in branches(world, "mono"))
 
 
+def test_split_removal_refuses_a_symlinked_moved_md(ctx, world, tmp_path):
+    out = outside(tmp_path)
+    plant_symlink(world, tmp_path, "mono", "MOVED.md", str(out / "MOVED.md"))
+    p = prep(ctx, "split", SPLIT)
+    ex = executor_for(ctx, "split")
+    ex.apply(p, dry_run=False)
+    with pytest.raises(SafetyError, match="symlink"):
+        ex.apply(proposals.get(ctx.db, p["id"]), dry_run=False)
+    assert [f.name for f in out.iterdir()] == ["victim.txt"]
+    assert f"ion/{p['id']}-remove" not in branches(world, "mono")
+
+
 # ---- others ---------------------------------------------------------------------------------
 
 def test_archive_executor_never_deletes(ctx):
@@ -300,6 +339,16 @@ def test_health_fix_opens_readme_pr(ctx, world):
     assert "ion <ion@example.com>" in author and "Co-Authored-By" not in author      # config identity, no AI trailer
 
 
+def test_health_fix_refuses_a_symlinked_readme(ctx, world, tmp_path):
+    out = outside(tmp_path)
+    plant_symlink(world, tmp_path, "alpha-core", "README.md", str(out / "victim.txt"))
+    p = prep(ctx, "health_fix", {"repo": "alpha-core", "file": "README.md", "description": "core lib"})
+    with pytest.raises(SafetyError, match="symlink"):
+        executor_for(ctx, "health_fix").apply(p, dry_run=False)
+    assert (out / "victim.txt").read_text() == "OPERATOR FILE\n"
+    assert f"ion/{p['id']}" not in branches(world, "alpha-core")
+
+
 def test_move_code_two_phase(ctx, world):
     p = prep(ctx, "move_code", {"source": "mono", "dir": "site", "target": "old-tool", "dest_prefix": "site"})
     ex = executor_for(ctx, "move_code")
@@ -312,6 +361,20 @@ def test_move_code_two_phase(ctx, world):
     ctx.gh.merged.add(("old-tool", 1))
     ex.apply(proposals.get(ctx.db, pid), dry_run=False)
     assert f"ion/{pid}-remove" in branches(world, "mono")
+
+
+def test_move_code_removal_refuses_a_symlinked_moved_md(ctx, world, tmp_path):
+    out = outside(tmp_path)
+    plant_symlink(world, tmp_path, "mono", "MOVED.md", str(out / "MOVED.md"))
+    p = prep(ctx, "move_code", {"source": "mono", "dir": "site", "target": "old-tool", "dest_prefix": "site"})
+    ex = executor_for(ctx, "move_code")
+    ex.apply(p, dry_run=False)
+    ex.apply(proposals.get(ctx.db, p["id"]), dry_run=False)
+    ctx.gh.merged.add(("old-tool", 1))
+    with pytest.raises(SafetyError, match="symlink"):
+        ex.apply(proposals.get(ctx.db, p["id"]), dry_run=False)
+    assert [f.name for f in out.iterdir()] == ["victim.txt"]
+    assert f"ion/{p['id']}-remove" not in branches(world, "mono")
 
 
 def test_runner_dry_run_default_and_apply(ctx, world):

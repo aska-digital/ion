@@ -24,3 +24,25 @@ def approve(ctx, p, actor="maint", ref=None):
 MERGE = {"source": "alpha-cli", "target": "alpha-core", "prefix": "alpha-cli", "source_branch": "main", "target_branch": "main",
          "visibility_conflict": False}
 SPLIT = {"source": "mono", "dirs": ["engine", "engine_utils"], "new_repo": "mono-engine", "private": False, "source_branch": "main"}
+
+
+def plant_symlink(remotes, tmp_path, repo, name, target):
+    """Commit `name` -> `target` as a symlink on the repo's main branch, as a hostile repo could."""
+    import os
+    from conftest import sh
+    work = tmp_path / f"plant-{repo}"
+    sh("git", "clone", "-q", str(remotes / f"{repo}.git"), str(work))
+    if (work / name).is_symlink() or (work / name).exists():
+        (work / name).unlink()
+    os.symlink(target, work / name)
+    sh("git", "add", "-A", cwd=work)
+    sh("git", "commit", "-qm", f"{name} as a symlink", cwd=work)
+    sh("git", "push", "-q", "origin", "main", cwd=work)
+
+
+def outside(tmp_path):
+    """A directory outside every checkout, holding one operator file."""
+    d = tmp_path / "outside"
+    d.mkdir(exist_ok=True)
+    (d / "victim.txt").write_text("OPERATOR FILE\n")
+    return d

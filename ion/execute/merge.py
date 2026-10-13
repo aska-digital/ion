@@ -2,11 +2,10 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from .. import proposals
 from ..collect.mirror import mirror_path as _mp
-from ..util import Refused, SafetyError
+from ..util import Refused, SafetyError, safe_write
 from .. import changesets
 from ..writes import WriteRequest
 from .base import Executor, Plan, Step, Waiting
@@ -105,7 +104,7 @@ class MergeExecutor(Executor):
 
         def edit():
             self.g(["checkout", "-q", "-B", branch, f"origin/{base}"], cwd=pdir)
-            (Path(pdir) / "README.md").write_text(
+            safe_write(pdir, "README.md",
                 f"# {A}\n\nThis repository has moved. Its code and history now live in "
                 f"[{self.cfg.org}/{s['target']}](https://github.com/{self.cfg.org}/{s['target']}) under `{s['prefix']}/`.\n")
             self.g(["add", "README.md"], cwd=pdir)
