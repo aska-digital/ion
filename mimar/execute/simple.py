@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .. import proposals
 from ..util import SafetyError
+from .. import changesets
 from ..writes import WriteRequest
 from .base import Executor, Plan, Step, filter_args
 from .provenance import origin_callback
@@ -220,7 +221,8 @@ class MoveCodeExecutor(Executor):
                 self.commit(sdir, f"Remove {D}; moved to {T} ({pid})")
 
             def pr():
-                n = self.open_pr(S, branch, sb, f"Remove {D}; moved to {T} [{pid}]", f"{D} now lives in {T}.")
+                dep = changesets.depends_on_line(self.ctx, self.fresh(pid), "remove")
+                n = self.open_pr(S, branch, sb, f"Remove {D}; moved to {T} [{pid}]", f"{D} now lives in {T}." + (f"\n\n{dep}" if dep else ""))
                 self.db.set_state(pid, removal_pr=n)
                 return str(n)
             return Plan(pid, "move_code", "remove", [

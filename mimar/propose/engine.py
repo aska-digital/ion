@@ -214,3 +214,18 @@ def _clear_stale_approvals(ctx, p: dict, why: str) -> None:
         labels.clear_decision_labels(ctx, proposals.get(ctx.db, p["id"]))
     except Exception as e:  # noqa: BLE001
         log.warning("could not clear labels on %s: %s", p["id"], str(e)[:160])
+
+
+def file_proposal(ctx, kind: str, key: str, subject: dict, evidence: dict, score: float = 0.8) -> tuple[dict, bool]:
+    """File a proposal that did not come from the analyzers (a maintainer asked for it, e.g. a fleet autofix).
+
+    Returns (proposal, created). An active proposal with the same key is returned as is."""
+    latest = _latest_for_key(ctx.db, key)
+    if latest is not None and latest["status"] in ACTIVE:
+        return proposals.view(latest), False
+    plan = plan_for(ctx, kind, subject)
+    text = synth.template({"key": key, "kind": kind, "subject": subject, "evidence": evidence, "score": score}, plan.render())
+    p = proposals.create(ctx.db, kind, key, subject, evidence, text, score, plan.fingerprint())
+    p = proposals.get(ctx.db, p["id"])
+    refresh_issue(ctx, p)
+    return proposals.get(ctx.db, p["id"]), True

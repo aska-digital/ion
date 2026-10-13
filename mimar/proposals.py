@@ -23,7 +23,7 @@ def get(db, pid: str) -> dict | None:
 
 def involved_repos(p: dict) -> list[str]:
     s = p["subject"]
-    repos = [s[k] for k in ("repo", "source", "target") if s.get(k)]
+    repos = [s[k] for k in ("repo", "source", "target") if s.get(k)] + list(s.get("repos") or [])
     return list(dict.fromkeys(repos))
 
 

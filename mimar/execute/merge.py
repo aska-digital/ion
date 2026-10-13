@@ -7,6 +7,7 @@ from pathlib import Path
 from .. import proposals
 from ..collect.mirror import mirror_path as _mp
 from ..util import Refused, SafetyError
+from .. import changesets
 from ..writes import WriteRequest
 from .base import Executor, Plan, Step, Waiting
 from .provenance import verify_merged_tree
@@ -111,12 +112,16 @@ class MergeExecutor(Executor):
             self.commit(pdir, f"Point README at {s['target']} ({pid})")
 
         def pr():
+            dep = changesets.depends_on_line(self.ctx, self.fresh(pid), "pointer")
             n = self.open_pr(A, branch, base, f"Point README at {s['target']} [{pid}]",
-                             f"Replaces the README with a pointer to {s['target']}. The repository will be archived after this merges.")
+                             f"Replaces the README with a pointer to {s['target']}. The repository will be archived after this merges."
+                             + (f"\n\n{dep}" if dep else ""))
             self.db.set_state(pid, pointer_pr=n)
             return str(n)
 
         return Plan(pid, "merge", "pointer", [
+            Step("ordering", "the import PR must have landed before the pointer PR is opened", None,
+                 lambda: changesets.require(self.ctx, self.fresh(pid), "pointer"), mutates=False),
             Step("clone-source", f"clone {A}", ["git", "clone", url, str(pdir)], lambda: self.clone(url, pdir)),
             Step("edit-readme", "replace README with a pointer", None, edit),
             Step("push", f"push {branch}", ["git", "push", "origin", f"{branch}:refs/heads/{branch}"],
@@ -142,6 +147,8 @@ class MergeExecutor(Executor):
             self.ctx.writes.submit(WriteRequest("archive_repo", A))
             return "archived"
         return Plan(p["id"], "merge", "archive", [Step(
+            "ordering", "the pointer PR must have landed before the source is archived", None,
+            lambda: changesets.require(self.ctx, self.fresh(p["id"]), "archive"), mutates=False), Step(
             "archive-source", f"archive {A}" + (" via a separate approved proposal" if self.cfg["archive_requires_second_approval"] else ""),
             None, go)])
 

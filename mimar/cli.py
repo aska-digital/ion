@@ -37,6 +37,24 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("status")
     x = sub.add_parser("explain")
     x.add_argument("proposal")
+    g = sub.add_parser("grep", help="search every repo's default branch in the local mirrors (no API calls)")
+    g.add_argument("pattern")
+    g.add_argument("--path", action="append", default=[], help="limit to a pathspec, e.g. '*.py' (repeatable)")
+    g.add_argument("--repo", help="only repos matching this glob")
+    g.add_argument("-i", "--ignore-case", action="store_true")
+    g.add_argument("-F", "--fixed", action="store_true", help="pattern is a plain string, not a regex")
+    g.add_argument("--max", type=int, default=500)
+    af = sub.add_parser("autofix", help="preview a fleet change as diffs over the mirrors; --propose files it for approval")
+    af.add_argument("fixer", nargs="?", help="autofixer name (omit to list them)")
+    af.add_argument("--repo", help="only repos matching this glob")
+    af.add_argument("--propose", action="store_true", help="file a proposal; PRs open only after approval")
+    pc = sub.add_parser("plan-config", help="preview what a config change would change, without writing anything")
+    pc.add_argument("new_config", nargs="?", help="path to the new config file (defaults to the current one plus --set)")
+    pc.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
+                    help="override a key, dotted for nesting, value parsed as YAML (repeatable)")
+    pc.add_argument("--json", action="store_true")
+    db_ = sub.add_parser("dashboard", help="render the Org health issue body (what `report` publishes)")
+    db_.add_argument("--print", action="store_true", dest="show", help="print instead of publishing")
     sub.add_parser("pause", help="engage the kill switch")
     sub.add_parser("resume", help="release the kill switch")
     sub.add_parser("doctor", help="check gh auth, git, filter-repo, claude, the bus and the config")
@@ -129,6 +147,13 @@ def cmd_report(ctx, args, results=None):
     from .report import build_digest, mark_digest_sent, write_dashboard
     path = write_dashboard(ctx)
     out(f"dashboard: {path}")
+    try:
+        from .report.orghealth import publish
+        status = publish(ctx, results or {})
+        if not status.startswith("disabled"):
+            out(f"org health issue: {status}")
+    except Exception as e:  # noqa: BLE001
+        out(f"org health issue not updated: {str(e)[:160]}")
     text, changed = build_digest(ctx, results or {})
     if changed:
         errs = notify(ctx, text)
@@ -170,6 +195,9 @@ def cmd_status(ctx, args):
             + (" (partial)" if last["partial"] else ""))
     else:
         out("no collect run yet")
+    trip = ctx.db.kv_get("last_breaker_trip")
+    if trip:
+        out(f"last circuit breaker trip: {trip['ts']}: {trip['reason']}")
     counts = ctx.db.q("select status, count(*) n from proposals group by status")
     out("proposals: " + (", ".join(f"{r['status']}={r['n']}" for r in counts) or "none"))
     for r in ctx.db.q("select id,kind,status,score,title from proposals where status not in ('done','dropped','rejected') order by num"):
@@ -216,6 +244,74 @@ def cmd_doctor(ctx, args, cfg_error=None):
     return 1 if bad else 0
 
 
+def cmd_grep(ctx, args):
+    from .fleet import grep_mirrors
+    ms = grep_mirrors(ctx, args.pattern, args.path, args.repo, args.ignore_case, args.fixed, args.max)
+    for m in ms:
+        out(f"{m.repo}:{m.path}:{m.line}:{m.text}")
+    repos = len({m.repo for m in ms})
+    out(f"{len(ms)} matches in {repos} repos" + (f" (stopped at --max {args.max})" if len(ms) >= args.max else ""),)
+    return 0 if ms else 1
+
+
+def cmd_autofix(ctx, args):
+    from .fleet import FIXERS, digest, get_fixer, load_plugins, preview
+    if not args.fixer:
+        load_plugins(ctx.cfg)
+        for n, c in sorted(FIXERS.items()):
+            out(f"{n:<20} {c.description}")
+        return 0
+    fixer = get_fixer(ctx, args.fixer)
+    diffs = preview(ctx, fixer, args.repo)
+    for repo, d in diffs.items():
+        out(f"=== {repo}")
+        out(d.rstrip())
+    out(f"{fixer.name}: {len(diffs)} repos would change" + ("" if diffs else " (nothing to do)"))
+    if args.propose and diffs:
+        from .propose.engine import file_proposal
+        subject = {"fixer": fixer.name, "repos": sorted(diffs), "diffs": {r: digest(d) for r, d in sorted(diffs.items())}}
+        key = f"autofix:{fixer.name}:{digest(json.dumps(subject['diffs'], sort_keys=True))[:10]}"
+        p, created = file_proposal(ctx, "autofix", key, subject, {"diff_stat": {r: d.count(chr(10) + "+") for r, d in diffs.items()}})
+        out(f"{'filed' if created else 'already open'}: {p['id']} (awaiting approval; PRs open only after a maintainer approves)")
+    elif diffs:
+        out("preview only. Add --propose to file it for approval.")
+    return 0
+
+
+def cmd_plan_config(ctx, args):
+    from .planconfig import plan_config, render
+    import yaml
+    overrides: dict = {}
+    for item in args.set:
+        k, _, v = item.partition("=")
+        node = overrides
+        parts = k.split(".")
+        for part in parts[:-1]:
+            node = node.setdefault(part, {})
+        node[parts[-1]] = yaml.safe_load(v)
+    if not args.new_config and not overrides:
+        out("give a new config file or at least one --set KEY=VALUE")
+        return 2
+    new_cfg = load_config(args.new_config or args.config, overrides)
+    result = plan_config(ctx, new_cfg)
+    if args.json:
+        out(json.dumps(result, indent=2, default=str))
+    else:
+        for line in render(result):
+            out(line)
+    return 0
+
+
+def cmd_dashboard(ctx, args):
+    from .report.orghealth import publish, render_body
+    if args.show:
+        out(render_body(ctx, {})[0])
+        return 0
+    r = publish(ctx, {})
+    out(f"dashboard issue: {r}")
+    return 0
+
+
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING, format="%(levelname)s %(message)s")
@@ -241,7 +337,8 @@ def main(argv=None) -> int:
         if args.cmd == "doctor":
             return cmd_doctor(ctx, args)
         fn = {"collect": cmd_collect, "analyze": cmd_analyze, "propose": cmd_propose, "sync-approvals": cmd_sync,
-              "execute": cmd_execute, "report": cmd_report, "run": cmd_run, "status": cmd_status, "explain": cmd_explain}[args.cmd]
+              "execute": cmd_execute, "report": cmd_report, "run": cmd_run, "status": cmd_status, "explain": cmd_explain,
+              "grep": cmd_grep, "autofix": cmd_autofix, "plan-config": cmd_plan_config, "dashboard": cmd_dashboard}[args.cmd]
         r = fn(ctx, args)
         return r if isinstance(r, int) else 0
     except Exception as e:  # noqa: BLE001

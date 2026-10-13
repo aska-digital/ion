@@ -105,10 +105,14 @@ class FakeGH:
         self.next_pr = 1
         self.event_id = 100
         self.bot_login = "mimar-bot"
+        self.edits: dict[int, list[dict]] = {}
 
     # --- graphql
     def graphql(self, query, variables=None):
         self.graphql_calls += 1
+        if "userContentEdits" in query:
+            nodes = list(self.edits.get(int(variables["n"]), []))
+            return {"data": {"repository": {"issue": {"userContentEdits": {"nodes": nodes}}}}}
         i = 0 if not (variables or {}).get("after") else 1
         return self.pages[min(i, len(self.pages) - 1)]
 
@@ -118,6 +122,12 @@ class FakeGH:
         self.timeline.setdefault(issue, []).append({"id": self.event_id, "event": event, "label": {"name": label},
                                                     "actor": {"login": actor}, "created_at": ts})
         return self.event_id
+
+    def human_edit(self, issue: int, user: str | None, body: str, ts: str = "2099-03-01T00:00:00Z"):
+        """Someone edits an issue body on github.com. `user=None` records the change without any edit history."""
+        self.issues[issue]["body"] = body
+        if user:
+            self.edits.setdefault(issue, []).append({"createdAt": ts, "editor": {"login": user}})
 
     def writes_to(self, method, frag):
         return [w for w in self.writes if w[0] == method and frag in w[1]]
@@ -137,7 +147,10 @@ class FakeGH:
                             "security_and_analysis": {"secret_scanning": {"status": "enabled"}}}
                 raise RuntimeError("404 Not Found")
             if "pulls" in parts:
-                return {"merged": (parts[2], int(parts[4])) in self.merged}
+                merged = (parts[2], int(parts[4])) in self.merged
+                return {"merged": merged, "state": "closed" if merged else "open"}
+            if len(parts) == 5 and parts[3] == "issues":
+                return {"body": self.issues[int(parts[4])]["body"], "number": int(parts[4])}
             if path == "/user":
                 return {"login": self.bot_login}
             return {}

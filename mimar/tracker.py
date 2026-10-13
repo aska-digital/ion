@@ -31,6 +31,15 @@ def ensure_labels(ctx) -> None:
     ctx.db.kv_set("labels_ready", True)
 
 
+def _changeset_section(ctx, p: dict) -> list[str]:
+    from . import changesets
+    try:
+        rows = changesets.render(ctx, p)
+    except Exception:  # noqa: BLE001
+        return []
+    return ["## Changesets (in order)", *rows, ""] if rows else []
+
+
 def render_body(ctx, p: dict, plan_lines: list[str], rollback: list[str], approval: dict | None = None) -> str:
     t, s = p["text"], p["subject"]
     ev = json.dumps(p["evidence"], indent=2, default=str)
@@ -42,6 +51,7 @@ def render_body(ctx, p: dict, plan_lines: list[str], rollback: list[str], approv
         t.get("summary", ""), "", "## Why", t.get("rationale", ""), "",
         "## Risks", *[f"- {r}" for r in t.get("risks", [])], "",
         "## Blast radius", t.get("blast_radius", ""), "",
+        *_changeset_section(ctx, p),
         "## Plan (exact commands, dry-run output)", "```", *plan_lines, "```", "",
         "## Rollback", *[f"- {r}" for r in (t.get("rollback_plan") or rollback)], "",
         "## Evidence", "<details><summary>show</summary>", "", "```json", ev, "```", "</details>", "",

@@ -22,6 +22,12 @@ def sync_approvals(ctx) -> dict:
             res["ignored"] += r["ignored"]
         except Exception as e:  # noqa: BLE001
             res["errors"].append(f"bus: {str(e)[:200]}")
+    if "dashboard" in sources:
+        try:
+            from ..report import orghealth as dashboard
+            res["ignored"] += dashboard.sync(ctx)["ignored"]
+        except Exception as e:  # noqa: BLE001
+            res["errors"].append(f"dashboard: {str(e)[:200]}")
     for row in db.q("select id from proposals where status in ('awaiting-approval','approved','held')"):
         p = proposals.get(db, row["id"])
         if "github_label" in sources and p.get("issue_number"):

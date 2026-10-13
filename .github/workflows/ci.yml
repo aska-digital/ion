@@ -1,0 +1,31 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Python 3.12
+        run: uv python install 3.12
+      - name: System tools (git-filter-repo is used by the split and move tests)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git git-filter-repo
+          git --version
+          git filter-repo --version
+          git config --global user.name ci
+          git config --global user.email ci@example.invalid
+      - name: Install
+        run: uv sync --python 3.12
+      - name: Tests
+        run: uv run pytest -q
+      - name: Licence allowlist
+        run: uv run python scripts/check_licenses.py

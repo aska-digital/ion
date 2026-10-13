@@ -15,7 +15,16 @@ log = logging.getLogger("mimar")
 
 
 def run_analyze(ctx) -> dict:
+    result = compute_analysis(ctx)
+    ctx.db.x("insert into analyses(ts,gen,blob) values(?,?,?)", (iso(), result["gen"], json.dumps(result)))
+    return result
+
+
+def compute_analysis(ctx, cache: dict | None = None) -> dict:
+    """The whole analysis as a pure function of the stored snapshots, the mirrors and the config. Writes nothing.
+    `cache` lets two runs under different configs (plan-config) share the expensive per-repo loads."""
     cfg, db = ctx.cfg, ctx.db
+    cache = cache if cache is not None else {}
     snaps, gen = latest_snapshots(db)
     live = {n: s for n, s in snaps.items() if not s["archived"] and not s["fork"] and not s.get("empty")
             and n not in cfg["exclude"]}
@@ -33,11 +42,13 @@ def run_analyze(ctx) -> dict:
         if mp.exists() and s.get("default_branch"):
             g = GitRepo(mp, s["default_branch"])
             if g.resolve_ref():
-                tree[n] = set(g.files())
+                tree[n] = cache.setdefault(("tree", n, s.get("head_oid")), set(g.files()))
                 if n in live:
-                    rd = coupling.load_repo(n, mp, s["default_branch"], s, filters)
-                    if rd:
-                        data[n] = rd
+                    key = ("repo", n, s.get("head_oid"), json.dumps(filters, sort_keys=True))
+                    if key not in cache:
+                        cache[key] = coupling.load_repo(n, mp, s["default_branch"], s, filters)
+                    if cache[key]:
+                        data[n] = cache[key]
     health_f = {n: health.check(s, tree.get(n), cfg) for n, s in snaps.items() if n not in cfg["exclude"] and n not in ignored}
     policy_f = {n: policy.check(s, tree.get(n), cfg, overrides.get(n)) for n, s in snaps.items()
                 if n not in cfg["exclude"] and n not in ignored}
@@ -50,13 +61,15 @@ def run_analyze(ctx) -> dict:
     cohs = []
     for n, s in live.items():
         if n in data:
-            r = cohesion.analyze_repo(n, ctx.mirror_path(n), s["default_branch"], cfg, s, filters)
+            ck = ("coh", n, s.get("head_oid"), json.dumps(filters, sort_keys=True), json.dumps(cfg["thresholds"], sort_keys=True))
+            if ck not in cache:
+                cache[ck] = cohesion.analyze_repo(n, ctx.mirror_path(n), s["default_branch"], cfg, s, filters)
+            r = cache[ck]
             if r and r["candidates"]:
                 cohs.append(r)
     arch = lifecycle.archive_candidates(live, pairs, cfg)
     result = {"lifecycle": lifecycle.stages(snaps, cfg), "boundaries": boundaries.violations(snaps, pairs, cfg), "gen": gen, "repos": sorted(snaps), "analyzed": sorted(data), "health": health_f, "policy": policy_f,
               "coupling": pairs, "cohesion": cohs, "archive": arch, "lagging_forks": lifecycle.lagging_forks(snaps)}
-    db.x("insert into analyses(ts,gen,blob) values(?,?,?)", (iso(), gen, json.dumps(result)))
     return result
 
 

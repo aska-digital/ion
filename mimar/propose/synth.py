@@ -54,6 +54,12 @@ def template(cand: dict, plan_lines: list[str]) -> dict:
         risks = ["Archived repos are read-only until unarchived."]
         blast = f"{s['repo']} becomes read-only. Nothing is deleted."
         rollback = [f"Unarchive {s['repo']} in its settings."]
+    elif k == "autofix":
+        title = f"{s['fixer']} across {len(s['repos'])} repos"
+        rationale = f"Fleet change `{s['fixer']}`: " + ", ".join(s["repos"]) + ". The diffs below are exactly what will be committed."
+        risks = ["One PR per repo; each is merged by a maintainer.", "The change is recomputed at run time and stops if a repo moved on since approval."]
+        blast = f"{len(s['repos'])} repos, one PR each."
+        rollback = ["Close the PRs."]
     elif k == "policy_fix":
         title = f"{s['class'].replace('_', ' ')} on {s['repo']}"
         rationale = ev.get("detail", "drift from policy")
@@ -85,7 +91,7 @@ def prompt_for(cand: dict, base: dict) -> str:
 
 def synthesize(cand: dict, plan_lines: list[str], llm) -> dict:
     base = template(cand, plan_lines)
-    if llm is None or not llm.enabled or cand["kind"] in ("policy_fix",):
+    if llm is None or not llm.enabled or cand["kind"] in ("policy_fix", "autofix"):
         return base
     try:
         out = llm.complete_json(prompt_for(cand, base), structural=cand["kind"] in ("merge", "split"))
