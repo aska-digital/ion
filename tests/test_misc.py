@@ -202,3 +202,27 @@ def test_legacy_mimar_config_is_found_with_migration_note(tmp_path, monkeypatch,
     (tmp_path / ".mimar" / "mimar.yml").write_text("org: o\n")
     assert find_config_file() == tmp_path / ".mimar" / "mimar.yml"
     assert "deprecated" in capsys.readouterr().err
+
+
+def test_git_ignores_the_operators_git_environment(tmp_path, monkeypatch):
+    from ion.fleet import staged_diff
+    from ion.util import git
+    hooks = tmp_path / "hooks"
+    hooks.mkdir()
+    (hooks / "pre-commit").write_text("#!/bin/sh\nexit 1\n")
+    (hooks / "pre-commit").chmod(0o755)
+    gc = tmp_path / "gitconfig"
+    gc.write_text(f"[diff]\n\tmnemonicPrefix = true\n\tnoprefix = true\n\talgorithm = histogram\n\texternal = false\n"
+                  f"[commit]\n\tgpgSign = true\n[gpg]\n\tprogram = false\n[core]\n\thooksPath = {hooks}\n")
+    repo = tmp_path / "r"
+    git(["init", "-q", str(repo)])
+    (repo / "f").write_text("x\n")
+    git(["add", "f"], cwd=repo)
+    plain = staged_diff(repo)
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(gc))
+    monkeypatch.setenv("GIT_AUTHOR_NAME", "Operator")
+    monkeypatch.setenv("GIT_DIR", str(tmp_path / "elsewhere"))
+    assert staged_diff(repo) == plain and "+++ b/f" in plain     # the approved digest is the same on every machine
+    git(["-c", "user.name=ion", "-c", "user.email=ion@example.invalid", "commit", "-q", "-m", "m"], cwd=repo)
+    monkeypatch.delenv("GIT_DIR")
+    assert git(["log", "-1", "--format=%an %G?"], cwd=repo).stdout.strip() == "ion N"

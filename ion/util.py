@@ -76,8 +76,20 @@ def filter_repo_path() -> str | None:
     return which("git-filter-repo", ["~/Library/Python/3.9/bin", "~/.local/bin"])
 
 
+# Variables from the operator's shell that would point Ion's git at another repo, or re-sign, re-date or re-author its
+# commits. Explicit `extra` still wins.
+GIT_ENV_DROP = re.compile(r"GIT_(DIR|WORK_TREE|INDEX_FILE|OBJECT_DIRECTORY|ALTERNATE_OBJECT_DIRECTORIES|COMMON_DIR|NAMESPACE"
+                          r"|(AUTHOR|COMMITTER)_(NAME|EMAIL|DATE)|EXTERNAL_DIFF|DIFF_OPTS|CONFIG_PARAMETERS|CONFIG_COUNT"
+                          r"|CONFIG_(KEY|VALUE)_\d+)")
+# Global config that would sign Ion's commits with the operator's key or run the operator's hooks in Ion's clones.
+GIT_CONFIG_OVERRIDES = {"commit.gpgSign": "false", "tag.gpgSign": "false", "core.hooksPath": os.devnull}
+
+
 def git_env(extra: dict | None = None) -> dict:
-    env = dict(os.environ)
+    env = {k: v for k, v in os.environ.items() if not GIT_ENV_DROP.fullmatch(k)}
+    env["GIT_CONFIG_COUNT"] = str(len(GIT_CONFIG_OVERRIDES))
+    for i, (k, v) in enumerate(GIT_CONFIG_OVERRIDES.items()):
+        env[f"GIT_CONFIG_KEY_{i}"], env[f"GIT_CONFIG_VALUE_{i}"] = k, v
     fr = filter_repo_path()
     if fr:
         env["PATH"] = str(Path(fr).parent) + os.pathsep + env.get("PATH", "")

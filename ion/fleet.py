@@ -12,6 +12,7 @@ from __future__ import annotations
 import fnmatch
 import hashlib
 import importlib
+import os
 import re
 import shutil
 import subprocess
@@ -22,7 +23,7 @@ from .analyze import health
 from .collect.snapshot import latest_snapshots
 from .config import parse_repo_override
 from .gitrepo import GitRepo
-from .util import git
+from .util import git, git_env
 
 
 # ---- grep ------------------------------------------------------------------------------------------------
@@ -59,7 +60,7 @@ def grep_mirrors(ctx, pattern: str, paths: list[str] | None = None, repo_glob: s
         if ignore_case:
             argv.append("-i")
         argv += ["-e", pattern, ref, "--", *(paths or [])]
-        p = subprocess.run(argv, capture_output=True, text=True, errors="replace")
+        p = subprocess.run(argv, capture_output=True, text=True, errors="replace", env=git_env())
         if p.returncode not in (0, 1):                   # 1 means "no match"
             raise RuntimeError(f"git grep failed in {name}: {p.stderr.strip()[:200]}")
         for rec in p.stdout.split("\n"):
@@ -197,7 +198,18 @@ def diff_of(ctx, fixer: Autofixer, repo: str, snap: dict, workdir: Path, url: st
     checkout(ctx, url or str(ctx.mirror_path(repo)), workdir, snap["default_branch"])
     fixer.apply(workdir, repo, snap)
     git(["add", "-A"], cwd=workdir)
-    return git(["diff", "--cached", "--no-color"], cwd=workdir).stdout
+    return staged_diff(workdir)
+
+
+# The approval stores a hash of this text, so it must not depend on the operator's diff.* settings
+# (mnemonicPrefix, noprefix, algorithm, context, external, ...). Every flag here is git's own default.
+STAGED_DIFF = ["-c", "core.quotePath=true", "-c", "diff.suppressBlankEmpty=false", "diff", "--cached", "--no-color",
+               "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/", "--diff-algorithm=myers",
+               "--indent-heuristic", "--no-renames", "--unified=3", "--inter-hunk-context=0", f"-O{os.devnull}"]
+
+
+def staged_diff(workdir: Path) -> str:
+    return git(STAGED_DIFF, cwd=workdir).stdout
 
 
 def preview(ctx, fixer: Autofixer, repo_glob: str | None = None) -> dict[str, str]:
