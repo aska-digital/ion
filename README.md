@@ -2,7 +2,7 @@
 
 Ion is a steward bot for a GitHub organisation. It watches every repo, spots drift from your policy, and proposes structural changes (merge, split, archive, rename, move code). **It never changes structure without a maintainer's approval.** Apache-2.0.
 
-*Ion* is Ottoman Turkish for architect.
+See [Why ion](#why-ion) for the name.
 
 ```
 collect -> analyze -> propose -> approve -> execute -> report
@@ -224,3 +224,10 @@ Contributions are welcome. Read `CONTRIBUTING.md` first; the short version:
 ## Licence
 
 Copyright 2026 ASKA Business Solutions and the Ion contributors. Apache-2.0, see `LICENSE` and `NOTICE`. Dependencies are listed in `THIRD_PARTY.md`.
+
+## Why ion
+
+- **The word.** Michael Faraday coined "ion" in 1834 from the Greek ἰόν, "going", for the charged particles that move through a solution toward an electrode. An ion is something that goes. ion moves through every repository in the org and carries a signal from one place to another.
+- **Lattices.** In a crystal, ions sit on the points of a lattice, and the pull between them holds the structure together. ion's job is the same: keep the org's structure sound. It watches how repos relate, proposes merges and splits, and holds policy steady. It also fits Exo's lattice theme: the incentre lattice, the exosphere, x0.
+- **Charge, applied with care.** An ion carries charge, and charge only does work along a path. ion acts only through approved paths: the `ion:approved` label or a signed bus message. It makes no silent changes.
+- **The amp team.** Current is ions in motion, measured in amperes. ion is reviewed, and likely powered, by the amp team, whose specialty is reviewing.
