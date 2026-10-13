@@ -136,6 +136,21 @@ def run_propose(ctx, dry_run: bool = False) -> dict:
             if c["kind"] not in ("policy_fix", "health_fix") or json.loads(latest["state"]).get("created_gen") == gen:
                 info["state"] = f"closed ({latest['status']})"
                 continue
+            if c["kind"] == "health_fix":
+                # A done health_fix means its PR was opened; while that PR still waits for a
+                # maintainer merge, the finding is being handled. Re-proposing it (seen live:
+                # P-0014/P-0015 duplicating P-0011/P-0012) is pure tracker noise.
+                st = json.loads(latest["state"])
+                pr_n = st.get("pr_number")
+                if pr_n:
+                    try:
+                        pr = ctx.gh.rest("GET", f"/repos/{cfg.org}/{c['subject']['repo']}/pulls/{int(pr_n)}")
+                    except Exception:  # noqa: BLE001  (an unreadable PR never suppresses a finding)
+                        pr = {}
+                    if pr.get("state") == "open" and not pr.get("merged"):
+                        info["state"] = f"suppressed (PR #{int(pr_n)} open)"
+                        res["suppressed"].append(key)
+                        continue
         if c["persist"] and not scoring.ready(streak, cfg):
             info["state"] = f"waiting ({streak}/{cfg['thresholds']['persist_runs']} runs)"
             continue

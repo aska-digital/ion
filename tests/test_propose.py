@@ -87,6 +87,27 @@ def test_hysteresis_in_engine_then_issue_created(ctx):
     assert not ctx.gh.writes_to("POST", "/comments")           # never any comment
 
 
+def test_done_health_fix_with_open_pr_is_not_reproposed(ctx):
+    analysed(ctx); run_propose(ctx)
+    run_collect(ctx); run_analyze(ctx); run_propose(ctx)
+    rows = ctx.db.q("select * from proposals where kind='health_fix'")
+    assert rows, "the fixture world should produce a health_fix proposal"
+    p = proposals.view(rows[0])
+    repo = p["subject"]["repo"]
+    # the executor finished and its PR is still open, waiting for a maintainer merge
+    proposals.set_status(ctx.db, p["id"], "done")
+    ctx.db.set_state(p["id"], pr_number=41)
+    run_collect(ctx); run_analyze(ctx)
+    r = run_propose(ctx)
+    assert len(ctx.db.q("select 1 from proposals where kind='health_fix'")) == len(rows)
+    assert any("open" in str(c.get("state")) for c in r["candidates"]
+               if c["key"] == p["key"]), r["candidates"]
+    # once that PR is no longer open, a later generation may propose again
+    ctx.gh.merged.add((repo, 41))
+    run_collect(ctx); run_analyze(ctx); run_propose(ctx)
+    assert len(ctx.db.q("select 1 from proposals where kind='health_fix'")) > len(rows)
+
+
 def test_dry_run_writes_nothing(ctx):
     analysed(ctx)
     before = len(ctx.gh.writes)
