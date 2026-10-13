@@ -200,10 +200,18 @@ def home(tmp_path, monkeypatch):
     return h
 
 
+@pytest.fixture(scope="session")
+def _world_template(tmp_path_factory):
+    t = tmp_path_factory.mktemp("world_template") / "remotes"
+    build_world(t)
+    return t
+
+
 @pytest.fixture
-def world(tmp_path):
+def world(tmp_path, _world_template):
+    import shutil
     remotes = tmp_path / "remotes"
-    build_world(remotes)
+    shutil.copytree(_world_template, remotes, ignore=shutil.ignore_patterns("_work"))
     return remotes
 
 

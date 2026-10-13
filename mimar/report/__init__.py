@@ -73,14 +73,14 @@ def _collect(ctx, results: dict):
     ev += results.get("execute", {}).get("actions", [])
     errs = list(results.get("errors", []))
     waiting = [r["id"] + " " + r["title"] for r in db.q("select id,title from proposals where status='awaiting-approval' order by num")]
-    sig = hashlib.sha256("\n".join(ev + errs + waiting).encode()).hexdigest()
+    sig = hashlib.sha256("\n".join(waiting).encode()).hexdigest()      # the awaiting-approval list
     return ev, errs, waiting, sig
 
 
 def build_digest(ctx, results: dict) -> tuple[str, bool]:
     """Short text for notifiers, and whether anything changed since the last digest."""
     ev, errs, waiting, sig = _collect(ctx, results)
-    changed = bool(ev or errs or waiting) and sig != ctx.db.kv_get("last_digest_sig")
+    changed = bool(ev or errs) or (bool(waiting) and sig != ctx.db.kv_get("last_digest_sig"))
     lines = [f"mimar {iso()[:10]}"] + [f"- {e}" for e in ev]
     if waiting:
         lines.append(f"awaiting approval ({len(waiting)}): " + "; ".join(waiting[:6]))

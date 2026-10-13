@@ -4,3 +4,4 @@ __pycache__/
 .pytest_cache/
 .mimar/
 uv.lock.bak
+.pytest_out
