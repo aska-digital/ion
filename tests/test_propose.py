@@ -217,7 +217,7 @@ def test_extract_json_and_claude_cli_backend(monkeypatch):
     assert extract_json('here {"a": {"b": 2}} ok') == {"a": {"b": 2}}
     calls = {}
 
-    def fake_run(argv, input=None, capture_output=None, text=None, timeout=None):
+    def fake_run(argv, input=None, capture_output=None, text=None, timeout=None, env=None):
         calls["argv"], calls["input"] = argv, input
         class P: returncode = 0; stdout = json.dumps({"result": '{"x": 1}'}); stderr = ""
         return P()
@@ -226,6 +226,26 @@ def test_extract_json_and_claude_cli_backend(monkeypatch):
     llm = make_llm(c)
     assert isinstance(llm, ClaudeCLI) and llm.complete_json("PROMPT", structural=True) == {"x": 1}
     assert calls["argv"] == ["claude", "-p", "--output-format", "json", "--model", "sonnet"] and calls["input"] == "PROMPT"
+
+
+def test_claude_cli_does_not_inherit_ambient_api_key(monkeypatch):
+    # ANTHROPIC_API_KEY belongs to the anthropic_api backend. Inherited by the CLI it
+    # overrides the seat login, and a stale key makes every call exit 1 (seen live).
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-stale")
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "stale")
+    monkeypatch.setenv("ION_TEST_SENTINEL", "kept")
+    seen = {}
+
+    def fake_run(argv, input=None, capture_output=None, text=None, timeout=None, env=None):
+        seen["env"] = env
+        class P: returncode = 0; stdout = json.dumps({"result": '{"x": 1}'}); stderr = ""
+        return P()
+    monkeypatch.setattr("ion.propose.llm.subprocess.run", fake_run)
+    llm = make_llm(load_config(None, {"org": "o", "llm": {"backend": "claude_cli"}}))
+    assert llm.complete_json("PROMPT") == {"x": 1}
+    assert seen["env"] is not None, "env must be set explicitly, not inherited"
+    assert "ANTHROPIC_API_KEY" not in seen["env"] and "ANTHROPIC_AUTH_TOKEN" not in seen["env"]
+    assert seen["env"]["ION_TEST_SENTINEL"] == "kept"
 
 
 def test_llm_call_cap_and_none_backend():

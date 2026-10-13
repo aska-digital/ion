@@ -32,7 +32,8 @@ def doctor(ctx, cfg_error: str | None = None) -> list[dict]:
     out.append(_ok("git-filter-repo", bool(fr), fr or "not found (needed for split and move_code)"))
     be = cfg["llm"]["backend"]
     if be == "claude_cli":
-        out.append(_ok("llm backend", bool(which("claude")), "claude CLI " + ("found" if which("claude") else "missing")))
+        out.append(_ok("llm backend", bool(which("claude")), "claude CLI " + ("found" if which("claude") else "missing")
+                       + (" (ambient ANTHROPIC_API_KEY not passed to it)" if os.environ.get("ANTHROPIC_API_KEY") else "")))
     elif be == "anthropic_api":
         out.append(_ok("llm backend", bool(os.environ.get("ANTHROPIC_API_KEY")), "ANTHROPIC_API_KEY " + ("set" if os.environ.get("ANTHROPIC_API_KEY") else "missing")))
     else:
