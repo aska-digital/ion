@@ -1,6 +1,6 @@
-from mimar import proposals
-from mimar.approve import core
-from mimar.propose.engine import plan_for, refresh_issue
+from ion import proposals
+from ion.approve import core
+from ion.propose.engine import plan_for, refresh_issue
 
 FUTURE = "2099-01-01T00:00:00Z"
 

@@ -1,4 +1,4 @@
-"""Features 9 (plan-config), 10 (ordered changesets) and 12 (mimar grep / autofix)."""
+"""Features 9 (plan-config), 10 (ordered changesets) and 12 (ion grep / autofix)."""
 import json
 import re
 
@@ -6,17 +6,17 @@ import pytest
 
 from conftest import make_ctx, sh
 from helpers import MERGE, SPLIT, approve, new_proposal
-from mimar import changesets, cli, proposals
-from mimar.analyze import run_analyze
-from mimar.collect import run_collect
-from mimar.config import load_config
-from mimar.execute import executor_for
-from mimar.execute.runner import run_execute
-from mimar.fleet import (Autofixer, DependabotConfig, ReadmeSkeleton, detect_ecosystems, digest, get_fixer, grep_mirrors,
+from ion import changesets, cli, proposals
+from ion.analyze import run_analyze
+from ion.collect import run_collect
+from ion.config import load_config
+from ion.execute import executor_for
+from ion.execute.runner import run_execute
+from ion.fleet import (Autofixer, DependabotConfig, ReadmeSkeleton, detect_ecosystems, digest, get_fixer, grep_mirrors,
                          preview, register)
-from mimar.planconfig import config_diff, plan_config, render
-from mimar.propose.engine import run_propose
-from mimar.util import Refused, Waiting
+from ion.planconfig import config_diff, plan_config, render
+from ion.propose.engine import run_propose
+from ion.util import Refused, Waiting
 
 
 # ---- feature 10: changesets ---------------------------------------------------------------------
@@ -60,7 +60,7 @@ def test_dependent_pr_names_what_it_depends_on_and_issue_shows_live_state(ctx, w
     q = proposals.get(ctx.db, p["id"])
     sts = {c["id"]: (c["state"], c.get("number")) for c in changesets.states(ctx, q)}
     assert sts["import"] == ("merged", 1) and sts["pointer"] == ("open", 2) and sts["archive"][0] == "blocked"
-    from mimar.propose.engine import refresh_issue
+    from ion.propose.engine import refresh_issue
     refresh_issue(ctx, q)
     body = ctx.gh.issues[p["issue_number"]]["body"]
     assert "1. [x] **import**" in body and "[acme/alpha-core#1]" in body and "2. [ ] **pointer**" in body and "`open`" in body
@@ -153,7 +153,7 @@ def test_autofix_propose_files_one_proposal_and_opens_no_pr(collected, capsys):
     assert set(p["subject"]["diffs"]) == {"alpha-cli", "alpha-core"} and p["issue_number"]
     assert not collected.gh.writes_to("POST", "/pulls") and not collected.gh.writes_to("PUT", "/protection")
     body = collected.gh.issues[p["issue_number"]]["body"]
-    assert "autofix" in body and "plan-sha256" in body and "mimar autofix dependabot-config --repo alpha-core" in body
+    assert "autofix" in body and "plan-sha256" in body and "ion autofix dependabot-config --repo alpha-core" in body
     cli.cmd_autofix(collected, args)                                                     # same request again: no second proposal
     assert len(collected.db.q("select 1 from proposals where kind='autofix'")) == 1
 
@@ -174,7 +174,7 @@ def test_autofix_needs_approval_then_opens_prs_through_typed_requests(collected,
     assert not out["waiting"] and proposals.get(collected.db, p["id"])["status"] == "done"
     assert {w[1].split("/")[3] for w in collected.gh.writes_to("POST", "/pulls")} == {"alpha-core", "alpha-cli"}
     for repo in ("alpha-core", "alpha-cli"):
-        files = sh("git", "--git-dir", str(world / f"{repo}.git"), "ls-tree", "-r", "--name-only", f"mimar/{p['id']}")
+        files = sh("git", "--git-dir", str(world / f"{repo}.git"), "ls-tree", "-r", "--name-only", f"ion/{p['id']}")
         assert ".github/dependabot.yml" in files
         assert sh("git", "--git-dir", str(world / f"{repo}.git"), "rev-parse", "main") != ""
     types = [r["type"] for r in collected.db.q("select type from write_log where type in ('push_branch','open_pr')")]
@@ -248,7 +248,7 @@ def analysed(ctx):
 
 
 def with_cfg(ctx, **over):
-    from mimar.config import deep_merge
+    from ion.config import deep_merge
     return load_config(None, deep_merge({k: v for k, v in ctx.cfg.items() if not k.startswith("_")}, over))
 
 

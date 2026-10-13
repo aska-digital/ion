@@ -1,8 +1,8 @@
 import json
 
 from conftest import FakeGH, make_ctx
-from mimar.collect import github, run_collect
-from mimar.collect.snapshot import latest_snapshots
+from ion.collect import github, run_collect
+from ion.collect.snapshot import latest_snapshots
 
 
 def test_collect_snapshots_and_mirrors(ctx):
@@ -36,7 +36,7 @@ def test_normalise_handles_missing_optional_fields():
 
 
 def test_override_file_parsed(tmp_path, home, world):
-    from mimar.config import parse_repo_override
+    from ion.config import parse_repo_override
     ov, err = parse_repo_override("maintainers: [bob]\nignore: false\n")
     assert ov["maintainers"] == ["bob"] and err is None
     ov, err = parse_repo_override("bogus: 1\n")

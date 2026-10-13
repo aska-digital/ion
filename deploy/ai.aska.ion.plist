@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Template. deploy/install.sh fills the __PLACEHOLDERS__. Runs `ion run` daily at 06:30 local time.
+     `run` is a dry run for executors unless you add <string>--apply</string> after <string>run</string>. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>ai.aska.ion</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__ION_BIN__</string>
+    <string>--config</string>
+    <string>__CONFIG__</string>
+    <string>run</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__SRC_DIR__</string>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>6</integer>
+    <key>Minute</key>
+    <integer>30</integer>
+  </dict>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>__HOME__/.local/bin:__HOME__/Library/Python/3.9/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>HOME</key>
+    <string>__HOME__</string>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>__HOME__/.ion/ion.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/.ion/ion.log</string>
+  <key>RunAtLoad</key>
+  <false/>
+  <key>ProcessType</key>
+  <string>Background</string>
+</dict>
+</plist>

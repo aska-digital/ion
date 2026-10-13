@@ -6,25 +6,25 @@ import pytest
 
 from conftest import FakeBus, make_ctx
 from helpers import MERGE, new_proposal
-from mimar import cli, notify, report, tracker
-from mimar.analyze import run_analyze
-from mimar.collect import run_collect
-from mimar.config import ConfigError, load_config
-from mimar.propose.engine import run_propose
+from ion import cli, notify, report, tracker
+from ion.analyze import run_analyze
+from ion.collect import run_collect
+from ion.config import ConfigError, load_config
+from ion.propose.engine import run_propose
 
 
 # ---- config ------------------------------------------------------------------------------
 
 def test_shipped_configs_validate():
     here = os.path.dirname(os.path.dirname(__file__))
-    ex = load_config(os.path.join(here, "mimar.example.yml"))
+    ex = load_config(os.path.join(here, "ion.example.yml"))
     assert ex["org"] == "your-org" and ex["auto_apply"] == []
 
 
 def test_defaults_are_generic_and_safe():
     c = load_config(None, {"org": "o"})
     assert c["auto_apply"] == [] and c["llm"]["backend"] == "none" and c["bus"]["client"] is None
-    assert c["approval_sources"] == ["github_label"] and c["tracker_repo"] == "mimar-tracker"
+    assert c["approval_sources"] == ["github_label"] and c["tracker_repo"] == "ion-tracker"
 
 
 def test_invalid_config_rejected():
@@ -39,7 +39,7 @@ def test_invalid_config_rejected():
 
 
 def test_no_org_specific_paths_in_code():
-    root = os.path.join(os.path.dirname(os.path.dirname(__file__)), "mimar")
+    root = os.path.join(os.path.dirname(os.path.dirname(__file__)), "ion")
     for dp, _, fs in os.walk(root):
         for f in fs:
             if f.endswith(".py"):
@@ -70,7 +70,7 @@ def test_webhook_payload_is_slack_and_discord_compatible(ctx, monkeypatch):
     def fake(req, timeout=None):
         sent["body"] = json.loads(req.data); sent["url"] = req.full_url
         return R()
-    monkeypatch.setattr("mimar.notify.urllib.request.urlopen", fake)
+    monkeypatch.setattr("ion.notify.urllib.request.urlopen", fake)
     monkeypatch.setenv("HOOK", "https://hooks.example/x")
     ctx.cfg["notifiers"] = [{"type": "webhook", "url_env": "HOOK"}]
     assert notify.notify(ctx, "digest") == []
@@ -111,7 +111,7 @@ def test_issue_body_updated_in_place_never_commented(ctx):
     p = new_proposal(ctx, "merge", MERGE)
     n = p["issue_number"]
     first = ctx.gh.issues[n]["body"]
-    from mimar.propose.engine import refresh_issue
+    from ion.propose.engine import refresh_issue
     refresh_issue(ctx, p)
     assert ctx.gh.writes_to("PATCH", f"/issues/{n}") and ctx.gh.issues[n]["body"] != ""
     assert not [w for w in ctx.gh.writes if "comments" in w[1]]
@@ -164,7 +164,7 @@ def test_run_pipeline_dry_by_default(ctx, capsys):
 
 
 def test_doctor_reports_checks(ctx):
-    from mimar.doctor import doctor
+    from ion.doctor import doctor
     checks = {c["name"]: c for c in doctor(ctx)}
     assert checks["git"]["ok"] and checks["git-filter-repo"]["ok"] and checks["llm backend"]["ok"]
     assert checks["kill switch"]["detail"].startswith("off")
@@ -174,18 +174,31 @@ def test_doctor_reports_checks(ctx):
 
 
 def test_doctor_checks_the_bus_seat_key_without_creating_it(ctx, tmp_path):
-    from mimar.doctor import doctor
+    from ion.doctor import doctor
     client = tmp_path / "divan.py"
     client.write_text("# stub")
     ctx.cfg["approval_sources"] = ["divan_bus"]
-    ctx.cfg["bus"].update(client=str(client), python="python3", seat="mimar", key=str(tmp_path / "mimar.key"))
+    ctx.cfg["bus"].update(client=str(client), python="python3", seat="ion", key=str(tmp_path / "ion.key"))
     checks = {c["name"]: c for c in doctor(ctx)}
     assert checks["bus"]["ok"] and not checks["bus seat key"]["ok"] and "MISSING" in checks["bus seat key"]["detail"]
-    assert not (tmp_path / "mimar.key").exists()                                    # doctor never creates a key
-    (tmp_path / "mimar.key").write_text("k")
+    assert not (tmp_path / "ion.key").exists()                                    # doctor never creates a key
+    (tmp_path / "ion.key").write_text("k")
     assert {c["name"]: c for c in doctor(ctx)}["bus seat key"]["ok"]
 
 
 def test_tokens_are_redacted():
-    from mimar.util import redact
+    from ion.util import redact
     assert "gho_" not in redact("auth failed for gho_" + "a" * 36) and "sk-ant" not in redact("key sk-ant-" + "b" * 30)
+
+
+def test_legacy_mimar_config_is_found_with_migration_note(tmp_path, monkeypatch, capsys):
+    from ion.config import find_config_file
+    monkeypatch.delenv("ION_HOME", raising=False)
+    monkeypatch.delenv("ION_CONFIG", raising=False)
+    monkeypatch.delenv("MIMAR_CONFIG", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".mimar").mkdir()
+    (tmp_path / ".mimar" / "mimar.yml").write_text("org: o\n")
+    assert find_config_file() == tmp_path / ".mimar" / "mimar.yml"
+    assert "deprecated" in capsys.readouterr().err

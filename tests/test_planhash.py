@@ -5,13 +5,13 @@ import pytest
 
 from conftest import FakeBus, make_ctx
 from helpers import FUTURE, MERGE, approve, new_proposal
-from mimar import proposals
-from mimar.analyze import policy, run_analyze
-from mimar.approve import core, sync_approvals
-from mimar.collect import run_collect
-from mimar.execute import executor_for
-from mimar.propose.engine import _refresh_existing, gather_candidates, plan_for
-from mimar.util import Refused
+from ion import proposals
+from ion.analyze import policy, run_analyze
+from ion.approve import core, sync_approvals
+from ion.collect import run_collect
+from ion.execute import executor_for
+from ion.propose.engine import _refresh_existing, gather_candidates, plan_for
+from ion.util import Refused
 
 
 def setup(ctx):
@@ -39,7 +39,7 @@ def test_hash_changes_with_what_would_run(ctx):
 
 def test_approval_counts_for_the_displayed_plan(ctx):
     p = setup(ctx)
-    ctx.gh.add_label_event(p["issue_number"], "mimar:approved", "maint")
+    ctx.gh.add_label_event(p["issue_number"], "ion:approved", "maint")
     sync_approvals(ctx)
     row = ctx.db.one("select * from approvals where proposal=?", (p["id"],))
     assert row["plan_hash"] == p["plan_hash"] and row["valid"] == 1
@@ -48,8 +48,8 @@ def test_approval_counts_for_the_displayed_plan(ctx):
 
 def test_replan_invalidates_the_approval_and_clears_the_label(ctx):
     p = setup(ctx)
-    ctx.gh.add_label_event(p["issue_number"], "mimar:approved", "maint")
-    ctx.gh.issues[p["issue_number"]]["labels"].append("mimar:approved")
+    ctx.gh.add_label_event(p["issue_number"], "ion:approved", "maint")
+    ctx.gh.issues[p["issue_number"]]["labels"].append("ion:approved")
     sync_approvals(ctx)
     assert proposals.get(ctx.db, p["id"])["status"] == "approved"
     old_hash = p["plan_hash"]
@@ -59,8 +59,8 @@ def test_replan_invalidates_the_approval_and_clears_the_label(ctx):
     q = proposals.get(ctx.db, p["id"])
     assert res["replanned"] == [p["id"]] and q["status"] == "awaiting-approval" and q["plan_hash"] != old_hash
     # the label came off the issue (one DELETE), and the new hash is displayed
-    assert len(ctx.gh.writes_to("DELETE", "/labels/mimar:approved")) == 1
-    assert "mimar:approved" not in ctx.gh.issues[p["issue_number"]]["labels"]
+    assert len(ctx.gh.writes_to("DELETE", "/labels/ion:approved")) == 1
+    assert "ion:approved" not in ctx.gh.issues[p["issue_number"]]["labels"]
     assert f"plan-sha256: {q['plan_hash']}" in ctx.gh.issues[p["issue_number"]]["body"]
     # the old approval no longer counts, even though the row is still on record
     assert core.evaluate(ctx, q)["state"] == "awaiting"
@@ -69,7 +69,7 @@ def test_replan_invalidates_the_approval_and_clears_the_label(ctx):
     sync_approvals(ctx)
     assert proposals.get(ctx.db, p["id"])["status"] == "awaiting-approval"
     # approving the new plan works
-    ctx.gh.add_label_event(p["issue_number"], "mimar:approved", "maint", ts="2101-01-01T00:00:00Z")
+    ctx.gh.add_label_event(p["issue_number"], "ion:approved", "maint", ts="2101-01-01T00:00:00Z")
     sync_approvals(ctx)
     assert proposals.get(ctx.db, p["id"])["status"] == "approved"
 
@@ -83,7 +83,7 @@ def test_approval_for_an_earlier_hash_does_not_count_even_if_label_stays(ctx):
 
 def test_approval_before_any_plan_was_displayed_does_not_count(ctx):
     p = setup(ctx)
-    ctx.gh.add_label_event(p["issue_number"], "mimar:approved", "maint", ts="2001-01-01T00:00:00Z")
+    ctx.gh.add_label_event(p["issue_number"], "ion:approved", "maint", ts="2001-01-01T00:00:00Z")
     sync_approvals(ctx)
     assert ctx.db.one("select plan_hash from approvals where proposal=?", (p["id"],))["plan_hash"] is None
     assert proposals.get(ctx.db, p["id"])["status"] == "awaiting-approval"
@@ -100,18 +100,18 @@ def test_approval_binds_to_hash_shown_at_the_time_not_the_current_one(ctx):
 
 def bus_ctx(tmp_path, world, bus):
     return make_ctx(tmp_path, world, {"approval_sources": ["divan_bus"], "bus": {
-        "client": "/x/divan.py", "python": "/x/py", "seat": "mimar", "maintainer_seats": ["saga-divan"], "notify": "saga-divan"}}, bus=bus)
+        "client": "/x/divan.py", "python": "/x/py", "seat": "ion", "maintainer_seats": ["saga-divan"], "notify": "saga-divan"}}, bus=bus)
 
 
 def msg(seq, sender, body):
-    return {"seq": seq, "id": f"id{seq}", "from": sender, "to": ["mimar"], "body": body, "ts": FUTURE, "kind": "msg", "enc": None}
+    return {"seq": seq, "id": f"id{seq}", "from": sender, "to": ["ion"], "body": body, "ts": FUTURE, "kind": "msg", "enc": None}
 
 
 def test_bus_approval_may_name_the_plan_hash(tmp_path, home, world):
     bus = FakeBus()
     ctx = bus_ctx(tmp_path, world, bus)
     p = setup(ctx)
-    bus.inbox = [msg(1, "saga-divan", f"mimar approve {p['id']} plan-sha256:{p['plan_hash'][:12]}")]
+    bus.inbox = [msg(1, "saga-divan", f"ion approve {p['id']} plan-sha256:{p['plan_hash'][:12]}")]
     sync_approvals(ctx)
     assert proposals.get(ctx.db, p["id"])["status"] == "approved"
 
@@ -120,18 +120,18 @@ def test_bus_approval_with_unknown_or_old_hash_is_ignored(tmp_path, home, world)
     bus = FakeBus()
     ctx = bus_ctx(tmp_path, world, bus)
     p = setup(ctx)
-    bus.inbox = [msg(1, "saga-divan", f"mimar approve {p['id']} deadbeefdead")]
+    bus.inbox = [msg(1, "saga-divan", f"ion approve {p['id']} deadbeefdead")]
     r = sync_approvals(ctx)
     assert proposals.get(ctx.db, p["id"])["status"] == "awaiting-approval"
     assert any("never displayed" in why for _, _, why in r["ignored"])
 
 
-def test_bus_message_from_mimars_own_seat_is_ignored(tmp_path, home, world):
+def test_bus_message_from_ions_own_seat_is_ignored(tmp_path, home, world):
     bus = FakeBus()
     ctx = bus_ctx(tmp_path, world, bus)
-    ctx.cfg["bus"]["maintainer_seats"] = ["saga-divan", "mimar"]
+    ctx.cfg["bus"]["maintainer_seats"] = ["saga-divan", "ion"]
     p = setup(ctx)
-    bus.inbox = [msg(1, "mimar", f"mimar approve {p['id']}")]
+    bus.inbox = [msg(1, "ion", f"ion approve {p['id']}")]
     sync_approvals(ctx)
     assert proposals.get(ctx.db, p["id"])["status"] == "awaiting-approval"
 
@@ -141,42 +141,42 @@ def test_bus_message_from_mimars_own_seat_is_ignored(tmp_path, home, world):
 def test_non_maintainer_label_is_removed_with_one_call_and_no_comment(ctx):
     p = setup(ctx)
     n = p["issue_number"]
-    ctx.gh.issues[n]["labels"].append("mimar:approved")
-    ctx.gh.add_label_event(n, "mimar:approved", "mallory")
+    ctx.gh.issues[n]["labels"].append("ion:approved")
+    ctx.gh.add_label_event(n, "ion:approved", "mallory")
     ctx.gh.writes.clear()
     r = sync_approvals(ctx)
     assert r["ignored"]
-    removals = ctx.gh.writes_to("DELETE", "/labels/mimar:approved")
-    assert len(removals) == 1 and "mimar:approved" not in ctx.gh.issues[n]["labels"]
+    removals = ctx.gh.writes_to("DELETE", "/labels/ion:approved")
+    assert len(removals) == 1 and "ion:approved" not in ctx.gh.issues[n]["labels"]
     assert not [w for w in ctx.gh.writes if "/comments" in w[1]]                    # never a comment
     ctx.gh.writes.clear()
     sync_approvals(ctx)                                                              # the label is gone: nothing more to do
-    assert not ctx.gh.writes_to("DELETE", "/labels/mimar:approved")
+    assert not ctx.gh.writes_to("DELETE", "/labels/ion:approved")
     assert proposals.get(ctx.db, p["id"])["status"] == "awaiting-approval"
 
 
 def test_maintainer_label_is_left_alone(ctx):
     p = setup(ctx)
-    ctx.gh.issues[p["issue_number"]]["labels"].append("mimar:approved")
-    ctx.gh.add_label_event(p["issue_number"], "mimar:approved", "maint")
+    ctx.gh.issues[p["issue_number"]]["labels"].append("ion:approved")
+    ctx.gh.add_label_event(p["issue_number"], "ion:approved", "maint")
     ctx.gh.writes.clear()
     sync_approvals(ctx)
-    assert not ctx.gh.writes_to("DELETE", "/labels/mimar")
+    assert not ctx.gh.writes_to("DELETE", "/labels/ion")
 
 
 def test_non_maintainer_hold_and_reject_labels_are_removed_too(ctx):
     p = setup(ctx)
-    for lab in ("mimar:rejected", "mimar:hold"):
+    for lab in ("ion:rejected", "ion:hold"):
         ctx.gh.issues[p["issue_number"]]["labels"].append(lab)
         ctx.gh.add_label_event(p["issue_number"], lab, "mallory")
     ctx.gh.writes.clear()
     sync_approvals(ctx)
-    assert len(ctx.gh.writes_to("DELETE", "/labels/mimar:rejected")) == 1 and len(ctx.gh.writes_to("DELETE", "/labels/mimar:hold")) == 1
+    assert len(ctx.gh.writes_to("DELETE", "/labels/ion:rejected")) == 1 and len(ctx.gh.writes_to("DELETE", "/labels/ion:hold")) == 1
 
 
 def test_no_label_removal_while_paused(ctx):
     p = setup(ctx)
-    ctx.gh.add_label_event(p["issue_number"], "mimar:approved", "mallory")
+    ctx.gh.add_label_event(p["issue_number"], "ion:approved", "mallory")
     ctx.cfg["paused"] = True
     ctx.gh.writes.clear()
     r = sync_approvals(ctx)
@@ -186,7 +186,7 @@ def test_no_label_removal_while_paused(ctx):
 # ---- feature 4: action level per policy --------------------------------------------------------
 
 def test_action_for_precedence():
-    from mimar.config import load_config
+    from ion.config import load_config
     cfg = load_config(None, {"org": "o", "auto_apply": ["dependabot_alerts"],
                              "policy_actions": {"branch_protection": "fix", "required_files": "log"}})
     assert policy.action_for(cfg, None, "branch_protection") == "fix"
@@ -197,7 +197,7 @@ def test_action_for_precedence():
 
 
 def test_opt_in_and_opt_out_strategies():
-    from mimar.config import load_config
+    from ion.config import load_config
     out = load_config(None, {"org": "o"})
     assert policy.governed(out, None, "r") and not policy.governed(out, {"enabled": False}, "r")
     inn = load_config(None, {"org": "o", "policy_strategy": "opt-in", "policy_repos": ["listed"]})
@@ -219,7 +219,7 @@ def test_log_level_is_recorded_but_never_proposed(ctx):
     a = analysed(ctx)
     keys = policy_keys(a)
     assert ("alpha-core", "branch_protection", "log") in keys
-    from mimar.collect.snapshot import latest_snapshots
+    from ion.collect.snapshot import latest_snapshots
     snaps = latest_snapshots(ctx.db)[0]
     kinds = {c["key"] for c in gather_candidates(ctx, a, snaps)}
     assert "policy:branch_protection:alpha-core" not in kinds                      # logged only

@@ -137,7 +137,7 @@
         }
        ]
       },
-      "mimarYml": null,
+      "ionYml": null,
       "parent": null
      },
      {
@@ -274,7 +274,7 @@
         }
        ]
       },
-      "mimarYml": null,
+      "ionYml": null,
       "parent": null
      },
      {
@@ -411,7 +411,7 @@
         }
        ]
       },
-      "mimarYml": null,
+      "ionYml": null,
       "parent": null
      }
     ]

@@ -5,11 +5,11 @@ import pytest
 
 from conftest import sh
 from helpers import MERGE, SPLIT, approve, new_proposal
-from mimar import proposals
-from mimar.collect import run_collect
-from mimar.execute import executor_for
-from mimar.execute.provenance import ZERO, origin_callback, read_commit_map, verify_filtered, verify_merged_tree
-from mimar.util import git
+from ion import proposals
+from ion.collect import run_collect
+from ion.execute import executor_for
+from ion.execute.provenance import ZERO, origin_callback, read_commit_map, verify_filtered, verify_merged_tree
+from ion.util import git
 
 
 def gd(remotes, repo):
@@ -31,7 +31,7 @@ def test_split_stamps_origin_trailer_and_tree_equals_source(ctx, world):
     # every moved commit names the original commit it came from
     src_shas = set(sh(*gd(world, "mono"), "rev-list", "main", "--", "site").split())
     msgs = sh(*gd(world, "mono-site"), "log", "--format=%B%x00", "main").split("\x00")
-    origins = {l.split("@")[1] for m in msgs for l in m.splitlines() if l.startswith("Mimar-Origin: acme/mono@")}
+    origins = {l.split("@")[1] for m in msgs for l in m.splitlines() if l.startswith("Ion-Origin: acme/mono@")}
     assert origins == src_shas and len(origins) == 5
     # the verification result is in the ledger with the tree hash
     detail = ctx.db.ledger_detail(p["id"], "create.verify")
@@ -98,11 +98,11 @@ def test_merge_verifies_tree_and_stamps_merge_commit(ctx, world):
     p = prep(ctx, "merge", MERGE)
     executor_for(ctx, "merge").apply(p, dry_run=False)
     pid = p["id"]
-    got = sh(*gd(world, "alpha-core"), "rev-parse", f"mimar/{pid}:alpha-cli").strip()
+    got = sh(*gd(world, "alpha-core"), "rev-parse", f"ion/{pid}:alpha-cli").strip()
     assert got == sh(*gd(world, "alpha-cli"), "rev-parse", "main^{tree}").strip()
-    top = sh(*gd(world, "alpha-core"), "log", "-1", "--format=%B", f"mimar/{pid}")
+    top = sh(*gd(world, "alpha-core"), "log", "-1", "--format=%B", f"ion/{pid}")
     tip = sh(*gd(world, "alpha-cli"), "rev-parse", "main").strip()
-    assert f"Mimar-Proposal: {pid}" in top and f"Mimar-Origin: acme/alpha-cli@{tip}" in top
+    assert f"Ion-Proposal: {pid}" in top and f"Ion-Origin: acme/alpha-cli@{tip}" in top
     assert got in ctx.db.ledger_detail(pid, "open_pr.verify-history")
 
 
@@ -123,6 +123,6 @@ def test_move_code_verifies_filter_and_import(ctx, world):
     executor_for(ctx, "move_code").apply(p, dry_run=False)
     pid = p["id"]
     assert ctx.db.ledger_done(pid, "add.verify-filter") and ctx.db.ledger_done(pid, "add.verify-import")
-    assert sh(*gd(world, "old-tool"), "rev-parse", f"mimar/{pid}:site") == sh(*gd(world, "mono"), "rev-parse", "main:site")
-    log = sh(*gd(world, "old-tool"), "log", "--format=%B", f"mimar/{pid}")
-    assert "Mimar-Origin: acme/mono@" in log
+    assert sh(*gd(world, "old-tool"), "rev-parse", f"ion/{pid}:site") == sh(*gd(world, "mono"), "rev-parse", "main:site")
+    log = sh(*gd(world, "old-tool"), "log", "--format=%B", f"ion/{pid}")
+    assert "Ion-Origin: acme/mono@" in log

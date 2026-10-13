@@ -3,13 +3,13 @@ import json
 import pytest
 
 from conftest import FakeGH, make_ctx
-from mimar import proposals
-from mimar.analyze import run_analyze
-from mimar.config import load_config
-from mimar.propose import scoring, synth
-from mimar.propose.engine import gather_candidates, run_propose
-from mimar.propose.llm import ClaudeCLI, LLMError, NoneLLM, extract_json, make_llm
-from mimar.collect import run_collect
+from ion import proposals
+from ion.analyze import run_analyze
+from ion.config import load_config
+from ion.propose import scoring, synth
+from ion.propose.engine import gather_candidates, run_propose
+from ion.propose.llm import ClaudeCLI, LLMError, NoneLLM, extract_json, make_llm
+from ion.collect import run_collect
 
 
 def cfg(**th):
@@ -28,7 +28,7 @@ def test_hysteresis_counts_generations_not_calls():
 def test_cooldown_and_rescore_exception():
     c = cfg()
     now_ = "2026-10-01T00:00:00Z"
-    from mimar.util import parse_ts
+    from ion.util import parse_ts
     t = parse_ts("2026-10-13T00:00:00Z")
     assert scoring.cooldown_blocks(now_, 0.7, 0.75, c, now=t)           # inside 60 days, small rise
     assert not scoring.cooldown_blocks(now_, 0.7, 0.86, c, now=t)       # rose by >= 0.15
@@ -58,7 +58,7 @@ def analysed(ctx):
 
 def test_candidates_cover_merge_split_archive_policy(ctx):
     a = analysed(ctx)
-    from mimar.collect.snapshot import latest_snapshots
+    from ion.collect.snapshot import latest_snapshots
     snaps, _ = latest_snapshots(ctx.db)
     keys = {c["key"] for c in gather_candidates(ctx, a, snaps)}
     assert any(k.startswith("merge:") and "alpha-core" in k for k in keys)
@@ -82,8 +82,8 @@ def test_hysteresis_in_engine_then_issue_created(ctx):
     merge = proposals.view(ctx.db.one("select * from proposals where kind='merge'"))
     assert merge["subject"]["source"] in ("alpha-core", "alpha-cli") and merge["issue_number"]
     issue = ctx.gh.issues[merge["issue_number"]]
-    assert "git subtree add" in issue["body"] and "mimar:approved" in issue["body"]
-    assert "mimar:proposal" in issue["labels"] and "kind:merge" in issue["labels"]
+    assert "git subtree add" in issue["body"] and "ion:approved" in issue["body"]
+    assert "ion:proposal" in issue["labels"] and "kind:merge" in issue["labels"]
     assert not ctx.gh.writes_to("POST", "/comments")           # never any comment
 
 
@@ -192,7 +192,7 @@ def test_extract_json_and_claude_cli_backend(monkeypatch):
         calls["argv"], calls["input"] = argv, input
         class P: returncode = 0; stdout = json.dumps({"result": '{"x": 1}'}); stderr = ""
         return P()
-    monkeypatch.setattr("mimar.propose.llm.subprocess.run", fake_run)
+    monkeypatch.setattr("ion.propose.llm.subprocess.run", fake_run)
     c = load_config(None, {"org": "o", "llm": {"backend": "claude_cli"}})
     llm = make_llm(c)
     assert isinstance(llm, ClaudeCLI) and llm.complete_json("PROMPT", structural=True) == {"x": 1}

@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from mimar.config import load_config
-from mimar.context import Context
-from mimar.db import DB
+from ion.config import load_config
+from ion.context import Context
+from ion.db import DB
 
 FIX = Path(__file__).parent / "fixtures"
 ENV = {**os.environ, "GIT_AUTHOR_NAME": "Dev One", "GIT_AUTHOR_EMAIL": "dev1@example.com",
@@ -91,7 +91,7 @@ def build_world(remotes: Path) -> None:
 class FakeGH:
     """In-memory GitHub. Records every write; never touches the network."""
 
-    def __init__(self, remotes: Path, pages: list[dict] | None = None, org="acme", tracker="mimar-tracker"):
+    def __init__(self, remotes: Path, pages: list[dict] | None = None, org="acme", tracker="ion-tracker"):
         self.remotes, self.org, self.tracker = remotes, org, tracker
         self.pages = pages if pages is not None else [json.loads((FIX / "graphql_org_page1.json").read_text()),
                                                        json.loads((FIX / "graphql_org_page2.json").read_text())]
@@ -104,7 +104,7 @@ class FakeGH:
         self.archived: set[str] = set()
         self.next_pr = 1
         self.event_id = 100
-        self.bot_login = "mimar-bot"
+        self.bot_login = "ion-bot"
         self.edits: dict[int, list[dict]] = {}
 
     # --- graphql
@@ -218,7 +218,7 @@ class FakeBus:
 @pytest.fixture
 def home(tmp_path, monkeypatch):
     h = tmp_path / "home"
-    monkeypatch.setenv("MIMAR_HOME", str(h))
+    monkeypatch.setenv("ION_HOME", str(h))
     return h
 
 
@@ -238,10 +238,10 @@ def world(tmp_path, _world_template):
 
 
 def make_ctx(tmp_path, remotes, overrides=None, gh=None, bus=None):
-    base = {"org": "acme", "maintainers": ["maint"], "exclude": ["hermes-agent"], "tracker_repo": "mimar-tracker",
+    base = {"org": "acme", "maintainers": ["maint"], "exclude": ["hermes-agent"], "tracker_repo": "ion-tracker",
             "thresholds": {"min_cluster_files": 5, "min_cluster_share": 0.2, "dup_min_bytes": 100},
-            "git_identity": {"name": "mimar", "email": "mimar@example.com"}}
-    from mimar.config import deep_merge
+            "git_identity": {"name": "ion", "email": "ion@example.com"}}
+    from ion.config import deep_merge
     cfg = load_config(None, deep_merge(base, overrides or {}))
     ctx = Context(cfg=cfg, db=DB(tmp_path / "state.db"), gh=gh or FakeGH(remotes),
                   bus_runner=bus or FakeBus(),
@@ -258,13 +258,13 @@ def ctx(tmp_path, home, world):
 
 @pytest.fixture
 def collected(ctx):
-    from mimar.collect import run_collect
+    from ion.collect import run_collect
     run_collect(ctx)
     return ctx
 
 
 @pytest.fixture(autouse=True)
-def _isolate_mimar_home(tmp_path_factory, monkeypatch):
-    """Never let tests read the operator's real ~/.mimar config or state."""
-    if "MIMAR_HOME" not in os.environ or not os.environ["MIMAR_HOME"].startswith(str(tmp_path_factory.getbasetemp())):
-        monkeypatch.setenv("MIMAR_HOME", str(tmp_path_factory.mktemp("mimar-home")))
+def _isolate_ion_home(tmp_path_factory, monkeypatch):
+    """Never let tests read the operator's real ~/.ion config or state."""
+    if "ION_HOME" not in os.environ or not os.environ["ION_HOME"].startswith(str(tmp_path_factory.getbasetemp())):
+        monkeypatch.setenv("ION_HOME", str(tmp_path_factory.mktemp("ion-home")))

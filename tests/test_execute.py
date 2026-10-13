@@ -4,11 +4,11 @@ import pytest
 
 from conftest import make_ctx, sh
 from helpers import MERGE, SPLIT, approve, new_proposal
-from mimar import proposals
-from mimar.collect import run_collect
-from mimar.execute import executor_for
-from mimar.execute.runner import run_execute
-from mimar.util import Refused, SafetyError, guard_git
+from ion import proposals
+from ion.collect import run_collect
+from ion.execute import executor_for
+from ion.execute.runner import run_execute
+from ion.util import Refused, SafetyError, guard_git
 
 
 def prep(ctx, kind, subject, approved=True):
@@ -48,7 +48,7 @@ def test_status_flag_alone_is_not_approval(ctx):
 
 
 def test_unverified_approval_row_does_not_count(ctx):
-    from mimar.approve import core
+    from ion.approve import core
     p = prep(ctx, "merge", MERGE, approved=False)
     core.record(ctx.db, p["id"], "github_label", "mallory", "approve", "2099-01-01T00:00:00Z", "x", False, "non maintainer")
     with pytest.raises(Refused):
@@ -98,7 +98,7 @@ def test_policy_fix_is_idempotent_calls(ctx):
     ex = executor_for(ctx, "policy_fix")
     ex.apply(p, dry_run=False)
     assert len(ctx.gh.writes_to("PUT", "/vulnerability-alerts")) == 1
-    from mimar.execute.simple import apply_policy_fix
+    from ion.execute.simple import apply_policy_fix
     apply_policy_fix(ctx, p["subject"])                         # re-applying is a plain PUT, safe to repeat
     assert len(ctx.gh.writes_to("PUT", "/vulnerability-alerts")) == 2
 
@@ -116,7 +116,7 @@ def test_git_guard_refuses_force_and_deletes():
 def test_safe_push_refuses_default_branch(ctx, tmp_path):
     ex = executor_for(ctx, "merge")
     with pytest.raises(SafetyError):
-        ex.safe_push(["origin", "mimar/x:refs/heads/main"], tmp_path, "main")
+        ex.safe_push(["origin", "ion/x:refs/heads/main"], tmp_path, "main")
 
 
 # ---- merge: dry run + end to end ---------------------------------------------------------
@@ -138,15 +138,15 @@ def test_merge_end_to_end_keeps_history_and_never_touches_default(ctx, world):
     assert out["phase"] == "open_pr" and not out["waiting"]
     assert head(world, "alpha-core") == main_before            # default branch untouched
     assert head(world, "alpha-cli") == src_before
-    assert f"mimar/{pid}" in branches(world, "alpha-core")
-    subs = subjects(world, "alpha-core", f"mimar/{pid}")
+    assert f"ion/{pid}" in branches(world, "alpha-core")
+    subs = subjects(world, "alpha-core", f"ion/{pid}")
     for i in range(5):
         assert f"cli {i}" in subs and f"core {i}" in subs     # full history of both, not squashed
     assert len(subs) >= 11
-    tree = sh("git", "--git-dir", str(world / "alpha-core.git"), "ls-tree", "-r", "--name-only", f"mimar/{pid}")
+    tree = sh("git", "--git-dir", str(world / "alpha-core.git"), "ls-tree", "-r", "--name-only", f"ion/{pid}")
     assert "alpha-cli/alpha_cli/main.py" in tree
     (pr,) = [w for w in ctx.gh.writes_to("POST", "/pulls")]
-    assert pr[1].endswith("/alpha-core/pulls") and pr[2]["head"] == f"mimar/{pid}" and pr[2]["base"] == "main"
+    assert pr[1].endswith("/alpha-core/pulls") and pr[2]["head"] == f"ion/{pid}" and pr[2]["base"] == "main"
     steps = [(r["step"], r["phase"]) for r in ctx.db.q("select step, phase from ledger where proposal=?", (pid,))]
     for s in ("open_pr.clone-target", "open_pr.subtree-add", "open_pr.push-branch", "open_pr.open-pr"):
         assert (s, "before") in steps and (s, "after") in steps
@@ -164,8 +164,8 @@ def test_merge_waits_for_pr_then_pointer_then_second_approval_archive(ctx, world
     ctx.gh.merged.add(("alpha-core", 1))
     ex.apply(proposals.get(ctx.db, pid), dry_run=False)                   # await -> pointer
     out = ex.apply(proposals.get(ctx.db, pid), dry_run=False)             # pointer PR in source
-    assert f"mimar/{pid}-pointer" in branches(world, "alpha-cli")
-    readme = sh("git", "--git-dir", str(world / "alpha-cli.git"), "show", f"mimar/{pid}-pointer:README.md")
+    assert f"ion/{pid}-pointer" in branches(world, "alpha-cli")
+    readme = sh("git", "--git-dir", str(world / "alpha-cli.git"), "show", f"ion/{pid}-pointer:README.md")
     assert "alpha-core" in readme and "moved" in readme
     assert head(world, "alpha-cli") == head(world, "alpha-cli", "main")
     assert "alpha-cli" not in ctx.gh.archived                              # nothing archived yet
@@ -211,7 +211,7 @@ def test_merge_refuses_when_prefix_exists(ctx, world):
     with pytest.raises(RuntimeError):
         executor_for(ctx, "merge").apply(p, dry_run=False)
     assert head(world, "alpha-core") == head(world, "alpha-core", "main")
-    assert f"mimar/{p['id']}" not in branches(world, "alpha-core")
+    assert f"ion/{p['id']}" not in branches(world, "alpha-core")
 
 
 # ---- split --------------------------------------------------------------------------------
@@ -239,8 +239,8 @@ def test_split_end_to_end(ctx, world):
     assert ctx.gh.writes_to("PUT", "/repos/acme/mono-engine/branches/main/protection")           # policy copied
     assert ctx.db.ledger_done(pid, "create.verify")
     ex.apply(proposals.get(ctx.db, pid), dry_run=False)                    # pointer phase
-    assert f"mimar/{pid}-remove" in branches(world, "mono")
-    removed = sh("git", "--git-dir", str(world / "mono.git"), "ls-tree", "-r", "--name-only", f"mimar/{pid}-remove").split()
+    assert f"ion/{pid}-remove" in branches(world, "mono")
+    removed = sh("git", "--git-dir", str(world / "mono.git"), "ls-tree", "-r", "--name-only", f"ion/{pid}-remove").split()
     assert not any(t.startswith("engine") for t in removed) and "MOVED.md" in removed and any(t.startswith("site/") for t in removed)
     assert head(world, "mono") == before
     assert proposals.get(ctx.db, pid)["status"] == "done"
@@ -294,10 +294,10 @@ def test_archive_executor_never_deletes(ctx):
 def test_health_fix_opens_readme_pr(ctx, world):
     p = prep(ctx, "health_fix", {"repo": "alpha-core", "file": "README.md", "description": "core lib"})
     executor_for(ctx, "health_fix").apply(p, dry_run=False)
-    assert f"mimar/{p['id']}" in branches(world, "alpha-core")
-    assert "core lib" in sh("git", "--git-dir", str(world / "alpha-core.git"), "show", f"mimar/{p['id']}:README.md")
-    author = sh("git", "--git-dir", str(world / "alpha-core.git"), "log", "-1", "--format=%an <%ae>%n%B", f"mimar/{p['id']}")
-    assert "mimar <mimar@example.com>" in author and "Co-Authored-By" not in author      # config identity, no AI trailer
+    assert f"ion/{p['id']}" in branches(world, "alpha-core")
+    assert "core lib" in sh("git", "--git-dir", str(world / "alpha-core.git"), "show", f"ion/{p['id']}:README.md")
+    author = sh("git", "--git-dir", str(world / "alpha-core.git"), "log", "-1", "--format=%an <%ae>%n%B", f"ion/{p['id']}")
+    assert "ion <ion@example.com>" in author and "Co-Authored-By" not in author      # config identity, no AI trailer
 
 
 def test_move_code_two_phase(ctx, world):
@@ -305,13 +305,13 @@ def test_move_code_two_phase(ctx, world):
     ex = executor_for(ctx, "move_code")
     ex.apply(p, dry_run=False)
     pid = p["id"]
-    tree = sh("git", "--git-dir", str(world / "old-tool.git"), "ls-tree", "-r", "--name-only", f"mimar/{pid}").split()
+    tree = sh("git", "--git-dir", str(world / "old-tool.git"), "ls-tree", "-r", "--name-only", f"ion/{pid}").split()
     assert "site/m0.py" in tree
     out = ex.apply(proposals.get(ctx.db, pid), dry_run=False)
     assert out["waiting"]
     ctx.gh.merged.add(("old-tool", 1))
     ex.apply(proposals.get(ctx.db, pid), dry_run=False)
-    assert f"mimar/{pid}-remove" in branches(world, "mono")
+    assert f"ion/{pid}-remove" in branches(world, "mono")
 
 
 def test_runner_dry_run_default_and_apply(ctx, world):
