@@ -209,11 +209,13 @@ def preview(ctx, fixer: Autofixer, repo_glob: str | None = None) -> dict[str, st
     repos = fleet_repos(ctx, repo_glob)
     root = ctx.work_dir("preview") / fixer.name
     out = {}
-    for name in fixer.find_repos(ctx, repos):
-        d = diff_of(ctx, fixer, name, repos[name], root / name)
-        if d.strip():
-            out[name] = d
-    shutil.rmtree(root, ignore_errors=True)
+    try:
+        for name in fixer.find_repos(ctx, repos):
+            d = diff_of(ctx, fixer, name, repos[name], root / name)
+            if d.strip():
+                out[name] = d
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
     return out
 
 
