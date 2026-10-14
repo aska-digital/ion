@@ -100,7 +100,10 @@ def check(snap: dict, files: set[str] | None, cfg, override: dict | None = None)
     ss = pol.get("secret_scanning")
     if ss and ss != "off":
         if private and ss == "public_only":
-            add("secret_scanning", "blocked_by_plan", "secret scanning on private repos needs a paid plan") if free else None
+            if free:
+                add("secret_scanning", "blocked_by_plan", "secret scanning on private repos needs a paid plan")
+            else:
+                add("secret_scanning", "unknown", "secret scanning status not collected for private repos")
         elif snap.get("fork"):
             add("secret_scanning", "skipped", "fork")
         else:
