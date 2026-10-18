@@ -38,6 +38,10 @@ def test_invalid_config_rejected():
         load_config(None, {"org": "o", "notifiers": [{"type": "pager"}]})
     with pytest.raises(ConfigError):
         load_config(None, {"org": None}).org
+    with pytest.raises(ConfigError):
+        load_config(None, {"org": "o", "policy": {"branch_protection": {"required_approvals": "many"}}})
+    with pytest.raises(ConfigError):
+        load_config(None, {"org": "o", "policy": {"branch_protection": {"require_pr": "yes"}}})
 
 
 def test_repo_override_can_lower_but_not_raise_policy_actions():

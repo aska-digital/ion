@@ -79,7 +79,7 @@ def sync_bus(ctx) -> dict:
     seats = set(cfg["bus"]["maintainer_seats"])
     top = since
     for e in envs:
-        top = max(top, int(e.get("seq", 0)))
+        top = max(top, int(e.get("seq") or 0))
     for e in cands:
         res["seen"] += 1
         for m in MSG_RE.finditer(e["body"]):

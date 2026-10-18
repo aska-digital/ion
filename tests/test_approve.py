@@ -209,3 +209,26 @@ def test_bus_down_is_reported_not_fatal(tmp_path, home, world):
     setup(ctx)
     r = sync_approvals(ctx)
     assert r["errors"] and "bus" in r["errors"][0]
+
+
+def test_quorum_counts_case_variants_as_one_approver(tmp_path, home, world):
+    ctx = make_ctx(tmp_path, world, {"quorum": 2, "maintainers": ["ada"],
+                                     "approval_sources": ["github_label", "divan_bus"],
+                                     "bus": {"maintainer_seats": ["Ada"]}})
+    p = setup(ctx)
+    ctx.db.set_state(p["id"], hash_log=[["2026-01-01T00:00:00Z", p["plan_hash"]]])
+    core.record(ctx.db, p["id"], "divan_bus", "Ada", "approve", FUTURE, "e1", True)
+    core.record(ctx.db, p["id"], "github_label", "ada", "approve", FUTURE, "e2", True)
+    ev = core.evaluate(ctx, proposals.get(ctx.db, p["id"]))
+    assert ev["state"] == "awaiting" and ev["approvers"] == ["ada"]
+
+
+def test_bus_envelope_without_seq_does_not_break_sync(tmp_path, home, world):
+    bus = FakeBus()
+    ctx = bus_ctx(tmp_path, world, bus)
+    p = setup(ctx)
+    m = msg(1, "saga-divan", f"ion approve {p['id']}")
+    m["seq"] = None
+    bus.inbox = [m]
+    r = sync_approvals(ctx)
+    assert status(ctx, p) == "approved" and not r["errors"]

@@ -120,6 +120,15 @@ def test_safe_push_refuses_default_branch(ctx, tmp_path):
         ex.safe_push(["origin", "ion/x:refs/heads/main"], tmp_path, "main")
 
 
+def test_safe_push_checks_every_refspec_not_just_the_last(ctx, tmp_path, monkeypatch):
+    ex = executor_for(ctx, "merge")
+    pushed = []
+    monkeypatch.setattr(ex, "g", lambda argv, **kw: pushed.append(argv))
+    with pytest.raises(SafetyError, match="non-ion branch"):
+        ex.safe_push(["origin", "docs:refs/heads/docs", "ion/x:refs/heads/ion/x"], tmp_path, "main")
+    assert pushed == []
+
+
 def test_safe_write_refuses_symlinks_and_paths_outside_the_checkout(tmp_path):
     root, out = tmp_path / "clone", outside(tmp_path)
     root.mkdir()
