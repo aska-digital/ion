@@ -52,7 +52,7 @@ Python 3.12+, managed with `uv`. Package `ion/`, CLI `ion`. State lives in SQLit
 - Every proposal gets a **plan hash** (`plan-sha256`): SHA-256 over its kind, subject and every step with its exact command. *(v2)*
 
 ### 2.4 Approve (`ion/approve/`)
-- Maintainers are listed in config, optionally per repo. An actor must be a maintainer of every repo the proposal touches.
+- Maintainers are listed in config. A repo's `.github/ion.yml` may narrow the list for that repo, never widen it: its `maintainers` is intersected with the org list (case-insensitive), so a login the org list lacks never counts, and a repo list that names no org maintainer leaves that repo with no approvers. An actor must be a maintainer of every repo the proposal touches.
 - Three channels, all verified, all bound to the plan hash *(v2)*:
   1. **Label** on the proposal issue: `ion:approved`, `ion:rejected`, `ion:hold`. Ion reads the issue timeline and takes the actor of the label event. A decision label from a non-maintainer is recorded as ignored **and removed again** (one API call, no comment). *(v2)*
   2. **Divan Bus** message `ion approve|reject|hold P-0007 [plan-sha256:<prefix>]` from a maintainer seat, signature-checked. A named hash must be one the issue actually displayed before the message. The decision is mirrored onto the issue as the label.
@@ -110,7 +110,7 @@ boundaries: {rules: [{from: "scope:app", allow: ["scope:app", "layer:shared"]}],
 approval_sources: [github_label, divan_bus, dashboard]
 report: {org_health_issue: true}
 ```
-`auto_apply` still works as the old spelling of `policy_actions: {<class>: fix}`. A repo's `.github/ion.yml` may set `enabled`, `ignore`, `maintainers`, `policy`, `policy_actions`. The tracker repo (`tracker_repo`) must be private: proposal bodies name private repos.
+`auto_apply` still works as the old spelling of `policy_actions: {<class>: fix}`. A repo's `.github/ion.yml` may set `enabled`, `ignore`, `maintainers`, `policy`, `policy_actions`. Anyone who can push to the repo can edit that file, so `maintainers` and `policy_actions` can only narrow the org config: `maintainers` is intersected with the org list, and a `policy_actions` level above the org level (`log` < `issue` < `fix`) is lowered to it. What was ignored shows as the `override_widens` health finding. The tracker repo (`tracker_repo`) must be private: proposal bodies name private repos.
 
 ## 4. CLI
 `ion collect | analyze | propose | sync-approvals | execute [--apply] [P-xxxx] | report | run [--apply] | status | explain P-xxxx | pause | resume | doctor`

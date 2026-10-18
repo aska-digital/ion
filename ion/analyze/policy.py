@@ -28,15 +28,24 @@ def governed(cfg, override: dict | None, repo: str) -> bool:
     return enabled is not False
 
 
+LEVELS = ("log", "issue", "fix")
+
+
+def org_action(cfg, key: str) -> str:
+    """The org config's level for a policy key: `policy_actions`, else `fix` if the legacy `auto_apply` list names
+    it, else `issue`."""
+    if key in cfg["policy_actions"]:
+        return cfg["policy_actions"][key]
+    return "fix" if {key, LEGACY_ALLOW.get(key)} & set(cfg["auto_apply"]) else "issue"
+
+
 def action_for(cfg, override: dict | None, cls: str) -> str:
-    """log | issue | fix for a policy class. A repo's own `policy_actions` win over the org config; classes the org
-    config does not mention are `fix` if the legacy `auto_apply` list names them, else `issue`."""
+    """log | issue | fix for a policy class. A repo's own `policy_actions` can only lower the org level, never raise
+    it: anyone who can push to the repo can edit that file, and `fix` means unattended writes."""
     key = policy_key(cls)
-    for table in ((override or {}).get("policy_actions") or {}, cfg["policy_actions"]):
-        if key in table:
-            return table[key]
-    legacy = {key, LEGACY_ALLOW.get(key)} & set(cfg["auto_apply"])
-    return "fix" if legacy else "issue"
+    org = org_action(cfg, key)
+    mine = ((override or {}).get("policy_actions") or {}).get(key, org)
+    return min(org, mine, key=LEVELS.index)
 
 
 def _rule_for(snap: dict) -> dict | None:

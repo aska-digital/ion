@@ -1,3 +1,5 @@
+import json
+
 from ion import proposals
 from ion.approve import core
 from ion.propose.engine import plan_for, refresh_issue
@@ -19,6 +21,13 @@ def approve(ctx, p, actor="maint", ref=None):
     core.record(ctx.db, p["id"], "github_label", actor, "approve", FUTURE, ref or f"t-{actor}", True)
     ctx.db.x("update proposals set status='approved' where id=?", (p["id"],))
     return proposals.get(ctx.db, p["id"])
+
+
+def set_override(ctx, repo, text):
+    """Pretend the latest snapshot of `repo` carried this `.github/ion.yml`."""
+    snap = json.loads(ctx.db.one("select blob from snapshots where repo=?", (repo,))["blob"])
+    snap["override_text"] = text
+    ctx.db.x("update snapshots set blob=? where repo=?", (json.dumps(snap), repo))
 
 
 MERGE = {"source": "alpha-cli", "target": "alpha-core", "prefix": "alpha-cli", "source_branch": "main", "target_branch": "main",

@@ -1,10 +1,12 @@
 import json
 
 from conftest import FakeBus, FakeGH, make_ctx
-from helpers import FUTURE, MERGE, approve, new_proposal
+from helpers import FUTURE, MERGE, approve, new_proposal, set_override
 from ion import proposals
 from ion.approve import core, sync_approvals
 from ion.collect import run_collect
+from ion.config import load_config
+from ion.execute.runner import run_execute
 
 
 def setup(ctx, **kw):
@@ -115,6 +117,26 @@ def test_per_repo_maintainer_override(ctx):
     ctx.gh.add_label_event(p["issue_number"], "ion:approved", "maint")
     sync_approvals(ctx)
     assert status(ctx, p) == "awaiting-approval"
+
+
+def test_repo_override_cannot_add_a_maintainer(ctx):
+    """Anyone who can push to a repo can edit its .github/ion.yml. Naming yourself there must not make you an approver."""
+    run_collect(ctx)
+    set_override(ctx, "old-tool", "maintainers: [mallory]\n")
+    p = new_proposal(ctx, "archive", {"repo": "old-tool"})
+    assert core.maintainers_for(ctx, p) == set()
+    ctx.gh.add_label_event(p["issue_number"], "ion:approved", "mallory")
+    sync_approvals(ctx)
+    assert status(ctx, p) == "awaiting-approval"
+    run_execute(ctx, apply=True)
+    assert "old-tool" not in ctx.gh.archived
+
+
+def test_repo_override_only_narrows_the_org_list():
+    cfg = load_config(None, {"org": "o", "maintainers": ["Maint", "Ann"]})
+    assert cfg.maintainers_for({"maintainers": ["maint", "mallory"]}) == ["Maint"]   # org spelling kept, mallory dropped
+    assert cfg.maintainers_for({"maintainers": ["mallory"]}) == []                    # no org maintainer named: nobody
+    assert cfg.maintainers_for({}) == cfg.maintainers_for(None) == ["Maint", "Ann"]
 
 
 # ---- bus ----------------------------------------------------------------------------
