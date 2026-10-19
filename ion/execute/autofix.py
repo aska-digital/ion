@@ -26,7 +26,7 @@ class AutofixExecutor(Executor):
             base = self.default_branch(repo)
 
             def fix(repo=repo, w=w, url=url, base=base):
-                snap = {"default_branch": base, "description": self._description(repo)}
+                snap = {**self._snapshot(repo), "default_branch": base}      # what the preview passed the fixer
                 got = digest(diff_of(self.ctx, fixer, repo, snap, w, url))
                 want = s["diffs"].get(repo)
                 if got != want:
@@ -55,9 +55,9 @@ class AutofixExecutor(Executor):
                 Step(f"{repo}.open-pr", f"{repo}: open the PR and label it `needs decision`", None, pr)]
         return Plan(pid, "autofix", "apply", steps)
 
-    def _description(self, repo: str) -> str:
+    def _snapshot(self, repo: str) -> dict:
         from ..collect.snapshot import latest_snapshots
-        return (latest_snapshots(self.db)[0].get(repo) or {}).get("description") or ""
+        return dict(latest_snapshots(self.db)[0].get(repo) or {})
 
     def after_phase(self, p, plan):
         proposals.set_status(self.db, p["id"], "done")

@@ -158,3 +158,23 @@ def test_cross_scope_merge_can_be_proposed_with_a_warning(ctx):
     m = proposals.view(ctx.db.one("select * from proposals where kind='merge'"))
     assert "different scopes" in m["subject"]["cross_scope"]
     assert any(r.startswith("BOUNDARY") for r in m["text"]["risks"]) and "crosses a boundary" in m["text"]["title"]
+
+
+def test_no_dependents_is_claimed_only_when_every_repo_was_read(ctx, world, tmp_path):
+    """alpha-core depends on old-tool. Without alpha-core's mirror that reference cannot be seen, so the archive
+    evidence must not say "no other repo references it" (and must not score it)."""
+    import shutil
+    from conftest import sh
+    work = tmp_path / "w"
+    sh("git", "clone", "-q", str(world / "alpha-core.git"), str(work))
+    (work / "pyproject.toml").write_text('[project]\nname = "alpha-core"\nversion = "0.1"\n'
+                                         'dependencies = ["old-tool", "requests", "pyyaml", "click"]\n')
+    sh("git", "commit", "-qam", "depend on old-tool", cwd=work)
+    sh("git", "push", "-q", "origin", "main", cwd=work)
+    run_collect(ctx)
+    arch = {a["repo"]: a for a in run_analyze(ctx)["archive"]}["old-tool"]
+    assert arch["dependents"] == ["alpha-core"] and not arch["qualifies"]
+    shutil.rmtree(ctx.mirror_path("alpha-core"))
+    arch = {a["repo"]: a for a in run_analyze(ctx)["archive"]}["old-tool"]
+    assert not arch["qualifies"] and "no other repo references it" not in arch["reasons"]
+    assert any(r.startswith("references unknown") for r in arch["reasons"])

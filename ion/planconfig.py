@@ -75,7 +75,8 @@ def plan_config(ctx, new_cfg) -> dict:
         p = proposals.view(row)
         c = c_new.get(p["key"])
         if c is None:
-            tracked.append({"id": p["id"], "key": p["key"], "effect": "no longer a candidate under the new config"})
+            if p["key"] in c_old:          # autofix and follow-up proposals are never analysis candidates
+                tracked.append({"id": p["id"], "key": p["key"], "effect": "no longer a candidate under the new config"})
         elif c.get("blocked"):
             tracked.append({"id": p["id"], "key": p["key"], "effect": f"blocked: {c['blocked']}"})
         else:

@@ -230,3 +230,34 @@ def test_legacy_mimar_config_is_found_with_migration_note(tmp_path, monkeypatch,
     (tmp_path / ".mimar" / "mimar.yml").write_text("org: o\n")
     assert find_config_file() == tmp_path / ".mimar" / "mimar.yml"
     assert "deprecated" in capsys.readouterr().err
+
+
+def test_digest_is_not_resent_while_a_notifier_backlog_is_queued(tmp_path, home, world):
+    """A failed delivery is queued and retried; it must not make every later run send the same digest again."""
+    import argparse
+    bus = FakeBus()
+    bus.down = True
+    log = tmp_path / "digest.log"
+    ctx = make_ctx(tmp_path, world, {"notifiers": [{"type": "file", "path": str(log)},
+                                                   {"type": "divan_bus", "client": "/c/divan.py", "to": "ops"}]}, bus=bus)
+    args = argparse.Namespace(apply=False)
+    run_collect(ctx)
+    new_proposal(ctx, "merge", MERGE)
+    cli.cmd_report(ctx, args, {})                                  # file ok, bus down: queued
+    new_proposal(ctx, "archive", {"repo": "old-tool"})
+    cli.cmd_report(ctx, args, {})                                  # something changed: sent, and queued for the bus
+    sent = log.read_text().count("awaiting approval (2)")
+    for _ in range(3):
+        cli.cmd_report(ctx, args, {})                              # nothing changed
+    assert log.read_text().count("awaiting approval (2)") == sent
+    assert ctx.db.one("select count(*) n from outbox where sent=0")["n"] == 2
+
+
+def test_execute_exits_nonzero_when_it_reports_errors(ctx, monkeypatch, capsys):
+    from helpers import approve
+    run_collect(ctx)
+    for r in ("alpha-core", "alpha-cli", "mono"):
+        approve(ctx, new_proposal(ctx, "archive", {"repo": r}))    # 3 archives > max_archives 2: the breaker trips
+    monkeypatch.setattr(cli, "make_ctx", lambda args, no_mirror=False: ctx)
+    assert cli.main(["execute", "--apply"]) == 1
+    assert "error: circuit breaker" in capsys.readouterr().out

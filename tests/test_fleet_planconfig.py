@@ -344,3 +344,44 @@ def test_plan_config_cli_with_set_overrides(ctx, capsys):
 def test_config_diff_is_flat_and_ignores_private_keys():
     a, b = {"a": {"b": 1, "c": 2}, "_path": "x"}, {"a": {"b": 1, "c": 3}, "_path": "y"}
     assert config_diff(a, b) == [{"key": "a.c", "old": 2, "new": 3}]
+
+
+def test_executed_autofix_gives_the_fixer_the_snapshot_the_preview_did(collected, monkeypatch):
+    """A plugin may read any snapshot field (here `languages`); the executor must recompute the same diff."""
+    from ion import fleet
+
+    class EditorConfig(Autofixer):
+        name = "editorconfig-by-language"
+        description = "add .editorconfig matching the primary language"
+        commit_message = pr_title = pr_body = "Add .editorconfig"
+
+        def find_repos(self, ctx, repos):
+            return ["old-tool"]
+
+        def apply(self, workdir, repo, snap):
+            size = 4 if "Python" in (snap.get("languages") or {}) else 2
+            self.write(workdir, ".editorconfig", f"root = true\n\n[*]\nindent_size = {size}\n")
+
+    monkeypatch.setitem(fleet.FIXERS, EditorConfig.name, EditorConfig)
+    cli.cmd_autofix(collected, cli.build_parser().parse_args(["autofix", EditorConfig.name, "--propose"]))
+    p = approve(collected, proposals.view(collected.db.one("select * from proposals where kind='autofix'")))
+    executor_for(collected, "autofix").apply(p, dry_run=False)
+    assert proposals.get(collected.db, p["id"])["status"] == "done"
+
+
+@pytest.mark.parametrize("text", ["ignore: true\n", "enabled: false\n"])
+def test_dependabot_config_honours_a_repo_opt_out(collected, text):
+    from helpers import set_override
+    from ion.fleet import fleet_repos
+    set_override(collected, "alpha-core", text)
+    assert "alpha-core" not in DependabotConfig().find_repos(collected, fleet_repos(collected))
+
+
+def test_plan_config_does_not_drop_proposals_analysis_never_makes(collected):
+    """An autofix proposal is not an analysis candidate under either config, so it cannot stop being one."""
+    from ion.config import deep_merge
+    run_analyze(collected)
+    cli.cmd_autofix(collected, cli.build_parser().parse_args(["autofix", "dependabot-config", "--repo", "alpha-*", "--propose"]))
+    same = load_config(None, deep_merge({k: v for k, v in collected.cfg.items() if not k.startswith("_")}, {}))
+    r = plan_config(collected, same)
+    assert r["config_changes"] == [] and r["open_proposals"] == []
