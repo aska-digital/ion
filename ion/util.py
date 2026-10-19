@@ -29,8 +29,8 @@ class Waiting(Exception):
 def home() -> Path:
     p = Path(os.environ.get("ION_HOME", "~/.ion")).expanduser()
     legacy = Path("~/.mimar").expanduser()
-    if "ION_HOME" not in os.environ and not p.exists() and legacy.is_dir():
-        return legacy  # deprecation shim: operator state not migrated yet
+    if "ION_HOME" not in os.environ and not (p / "state.db").exists() and legacy.is_dir():
+        return legacy  # deprecation shim: operator state not migrated yet (an empty ~/.ion does not count)
     p.mkdir(parents=True, exist_ok=True)
     return p
 
