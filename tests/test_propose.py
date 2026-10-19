@@ -275,3 +275,11 @@ def test_llm_call_cap_and_none_backend():
     assert not NoneLLM(load_config(None, {"org": "o"})).enabled
     with pytest.raises(LLMError):
         NoneLLM(load_config(None, {"org": "o"})).complete_json("x")
+
+
+def test_a_rise_of_exactly_rescore_delta_counts():
+    """README: "the score moves by 0.15 or more". In floats 0.7 - 0.55 and 0.6 - 0.45 are just under 0.15."""
+    from ion.util import parse_ts
+    c = cfg()
+    assert not scoring.cooldown_blocks("2026-10-01T00:00:00Z", 0.55, 0.7, c, now=parse_ts("2026-10-13T00:00:00Z"))
+    assert scoring.replan_needed("a", "a", 0.45, 0.6, c)

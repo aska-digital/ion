@@ -157,8 +157,7 @@ def cmd_report(ctx, args, results=None):
     text, changed = build_digest(ctx, results or {})
     if changed:
         errs = notify(ctx, text)
-        if len(errs) < len(ctx.cfg["notifiers"]):
-            mark_digest_sent(ctx, results or {})
+        mark_digest_sent(ctx, results or {})      # a failed delivery is queued in the outbox and retried, not re-sent
         for e in errs:
             out(f"notify error (queued for retry): {e}")
     else:
@@ -356,7 +355,10 @@ def main(argv=None) -> int:
               "execute": cmd_execute, "report": cmd_report, "run": cmd_run, "status": cmd_status, "explain": cmd_explain,
               "grep": cmd_grep, "autofix": cmd_autofix, "plan-config": cmd_plan_config, "dashboard": cmd_dashboard}[args.cmd]
         r = fn(ctx, args)
-        return r if isinstance(r, int) else 0
+        if isinstance(r, int):
+            return r
+        # like `run`: a stage that reported errors (a breaker trip, a failed sync) exits non-zero
+        return 1 if args.cmd in ("propose", "sync-approvals", "execute") and isinstance(r, dict) and r.get("errors") else 0
     except Exception as e:  # noqa: BLE001
         print(f"error: {e}", file=sys.stderr)
         return 1

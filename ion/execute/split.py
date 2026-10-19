@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 
 from .. import proposals
-from ..util import Refused, SafetyError, filter_repo_path, safe_write
+from ..util import Refused, SafetyError, filter_repo_path, redact, safe_write
 from ..writes import WriteRequest
 from .base import Executor, Plan, Step, filter_args
 from .provenance import origin_callback
@@ -36,7 +36,10 @@ class SplitExecutor(Executor):
             self.g(["filter-repo", *fargs, "--commit-callback", origin_callback(self.cfg.org, A), "--force"], cwd=cdir)
 
         def has_refs() -> bool:
-            return bool(self.g([*self.auth(n_url), "ls-remote", n_url], check=False).stdout.strip())
+            r = self.g([*self.auth(n_url), "ls-remote", n_url], check=False)
+            if r.returncode != 0:              # fail closed: a remote we cannot list is not known to be empty
+                raise SafetyError(f"cannot list {N}'s refs to check that it is empty: {redact(r.stderr or '')[:160]}")
+            return bool(r.stdout.strip())
 
         def create():
             try:

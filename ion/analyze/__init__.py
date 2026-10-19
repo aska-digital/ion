@@ -67,7 +67,7 @@ def compute_analysis(ctx, cache: dict | None = None) -> dict:
             r = cache[ck]
             if r and r["candidates"]:
                 cohs.append(r)
-    arch = lifecycle.archive_candidates(live, pairs, cfg)
+    arch = lifecycle.archive_candidates(live, pairs, cfg, unread=set(live) - set(data))
     result = {"lifecycle": lifecycle.stages(snaps, cfg), "boundaries": boundaries.violations(snaps, pairs, cfg), "gen": gen, "repos": sorted(snaps), "analyzed": sorted(data), "health": health_f, "policy": policy_f,
               "coupling": pairs, "cohesion": cohs, "archive": arch, "lagging_forks": lifecycle.lagging_forks(snaps)}
     return result
