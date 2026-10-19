@@ -177,7 +177,7 @@ deploy/install.sh ~/.ion/ion.yml
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.aska.ion.plist
 ```
 
-It runs `ion run` daily at 06:30 and logs to `~/.ion/ion.log`. The shipped plist runs executors as dry runs; add `--apply` after `run` once you trust the proposals. Keep the source outside `~/Documents` (macOS privacy prompts).
+It runs `ion run` daily at 06:30 and logs to `~/.ion/ion.log`. The installer gives the agent the same state directory as your shell (`ION_HOME`, default `~/.ion`) and an absolute config path (the argument, else `ION_CONFIG`, else `<state dir>/ion.yml`), so `ion pause` from your shell also stops the scheduled run. It refuses to install while state from before the rename is still in `~/.mimar`. The shipped plist runs executors as dry runs; add `--apply` after `run` once you trust the proposals. Keep the source outside `~/Documents` (macOS privacy prompts).
 
 Phase 2 (when cost or uptime justify it): a GitHub App identity and a GitHub Actions schedule with `llm.backend: anthropic_api`. Only config changes.
 

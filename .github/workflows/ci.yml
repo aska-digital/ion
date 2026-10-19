@@ -24,7 +24,7 @@ jobs:
           git config --global user.name ci
           git config --global user.email ci@example.invalid
       - name: Install
-        run: uv sync --python 3.12
+        run: uv sync --locked --python 3.12
       - name: Tests
         run: uv run pytest -q
       - name: Licence allowlist
