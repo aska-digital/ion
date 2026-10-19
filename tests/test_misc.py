@@ -44,6 +44,41 @@ def test_invalid_config_rejected():
         load_config(None, {"org": "o", "policy": {"branch_protection": {"require_pr": "yes"}}})
 
 
+@pytest.mark.parametrize("over", [
+    {"quorum_by_kind": {"archives": 2}},          # misspelt kind: archive quorum would silently stay at `quorum`
+    {"quorum_by_kind": {"merge": 0}},             # `quorum: 0` is refused, so the per-kind spelling must be too
+    {"writes": {"caps": {"archive": 0}}},         # misspelt write type: the archive cap would silently stay at 1
+    {"guards": {"max_archive": 0}},               # misspelt guard: the breaker's archive limit would stay at 2
+    {"policy": {"required_files": "LICENSE"}},
+    {"policy": {"branch_protection": True}},
+])
+def test_safety_config_typos_rejected(over):
+    with pytest.raises(ConfigError):
+        load_config(None, {"org": "o", **over})
+
+
+@pytest.mark.parametrize("text", ["policy: {required_files: 1}\n", "policy: {required_files: [1]}\n",
+                                  "policy: {branch_protection: true}\n",
+                                  "policy: {branch_protection: {required_approvals: two}}\n"])
+def test_malformed_repo_policy_is_reported_not_fatal(ctx, text):
+    """Anyone who can push to a repo can edit its .github/ion.yml. A malformed `policy` block there is reported for
+    that repo and ignored; it must not crash the analysis (or the preflight) for the whole org."""
+    ctx.gh.pages = json.loads(json.dumps(ctx.gh.pages))
+    for page in ctx.gh.pages:
+        for n in page["data"]["organization"]["repositories"]["nodes"]:
+            if n["name"] == "alpha-core":
+                n["ionYml"] = {"text": text}
+    run_collect(ctx)
+    a = run_analyze(ctx)
+    assert "bad_override" in [f["code"] for f in a["health"]["alpha-core"]]
+    assert "alpha-cli" in a["policy"]
+
+
+def test_repo_policy_may_still_turn_a_check_off():
+    from ion.config import parse_repo_override
+    assert parse_repo_override("policy: {branch_protection: false, required_files: null}\n")[1] is None
+
+
 def test_repo_override_can_lower_but_not_raise_policy_actions():
     cfg = load_config(None, {"org": "o", "auto_apply": ["dependabot_alerts"],
                              "policy_actions": {"branch_protection": "issue", "secret_scanning": "fix"}})

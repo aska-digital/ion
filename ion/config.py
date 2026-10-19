@@ -9,7 +9,9 @@ from pathlib import Path
 import jsonschema
 import yaml
 
+from .tracker import KINDS
 from .util import home
+from .writes import TYPES as WRITE_TYPES
 
 DEFAULTS: dict = {
     "org": None,
@@ -59,6 +61,17 @@ DEFAULTS: dict = {
 }
 
 _STR_LIST = {"type": "array", "items": {"type": "string"}}
+# The org policy, and a repo's `policy` override (which anyone who can push to that repo can edit). Only the types of
+# the keys ion reads are checked; a falsy value still turns a check off, as before.
+_POLICY = {"type": "object", "properties": {
+    "default_branch": {"type": "string"},
+    "branch_protection": {"anyOf": [{"enum": [False, None]}, {"type": "object", "properties": {
+        "require_pr": {"type": "boolean"}, "required_approvals": {"type": "integer", "minimum": 0},
+        "allow_force_pushes": {"type": "boolean"}, "allow_deletions": {"type": "boolean"},
+        "enforce_admins": {"type": "boolean"}}}]},
+    "dependabot_alerts": {"type": ["boolean", "null"]},
+    "secret_scanning": {"type": ["string", "boolean", "null"]},
+    "required_files": {"type": ["array", "null"], "items": {"type": "string"}}}}
 SCHEMA = {
     "type": "object",
     "properties": {
@@ -72,11 +85,7 @@ SCHEMA = {
             "backend": {"enum": ["claude_cli", "anthropic_api", "none"]},
             "max_calls_per_run": {"type": "integer", "minimum": 0}}},
         "budget": {"type": "object", "properties": {"graphql_points_per_run": {"type": "integer", "minimum": 1}}},
-        "policy": {"type": "object", "properties": {
-            "branch_protection": {"type": "object", "properties": {
-                "require_pr": {"type": "boolean"}, "required_approvals": {"type": "integer", "minimum": 0},
-                "allow_force_pushes": {"type": "boolean"}, "allow_deletions": {"type": "boolean"},
-                "enforce_admins": {"type": "boolean"}}}}},
+        "policy": _POLICY,
         "auto_apply": {"type": "array", "items": {"enum": ["branch_protection", "dependabot_alerts", "secret_scanning",
                                                            "health_fix"]}},
         "policy_actions": {"type": "object", "additionalProperties": {"enum": ["log", "issue", "fix"]},
@@ -90,14 +99,17 @@ SCHEMA = {
             "rules": {"type": "array", "items": {"type": "object", "required": ["from", "allow"], "properties": {
                 "from": {"type": "string"}, "allow": _STR_LIST}}},
             "scope_prefix": {"type": "string"}, "block_cross_scope_merge": {"type": "boolean"}}},
-        "writes": {"type": "object", "properties": {"caps": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}}}},
-        "guards": {"type": "object", "properties": {
+        "writes": {"type": "object", "properties": {"caps": {"type": "object", "propertyNames": {"enum": sorted(WRITE_TYPES)},
+                                                            "additionalProperties": {"type": "integer", "minimum": 0}}}},
+        "guards": {"type": "object", "additionalProperties": False, "properties": {
             "enabled": {"type": "boolean"}, "max_repo_fraction": {"type": "number", "minimum": 0, "maximum": 1},
             "min_repos": {"type": "integer", "minimum": 1}, "max_archives": {"type": "integer", "minimum": 0},
             "max_writes": {"type": "integer", "minimum": 1}, "forbid_protection_lowering": {"type": "boolean"}}},
         "thresholds": {"type": "object", "additionalProperties": {"type": "number"}},
         "approval_ttl_days": {"type": "integer", "minimum": 1},
         "quorum": {"type": "integer", "minimum": 1},
+        "quorum_by_kind": {"type": "object", "propertyNames": {"enum": KINDS},
+                           "additionalProperties": {"type": "integer", "minimum": 1}},
         "archive_requires_second_approval": {"type": "boolean"},
         "exclude": _STR_LIST,
         "git_identity": {"type": "object", "required": ["name", "email"]},
@@ -106,7 +118,7 @@ SCHEMA = {
 
 REPO_OVERRIDE_SCHEMA = {
     "type": "object",
-    "properties": {"maintainers": _STR_LIST, "ignore": {"type": "boolean"}, "policy": {"type": "object"},
+    "properties": {"maintainers": _STR_LIST, "ignore": {"type": "boolean"}, "policy": _POLICY,
                    "exclude_paths": _STR_LIST, "enabled": {"type": "boolean"},
                    "policy_actions": {"type": "object", "additionalProperties": {"enum": ["log", "issue", "fix"]}}},
     "additionalProperties": False,
