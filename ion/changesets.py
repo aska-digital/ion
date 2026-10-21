@@ -76,7 +76,9 @@ def states(ctx, p: dict, query: bool = True) -> list[dict]:
     by_id: dict[str, dict] = {}
     for cs in build(p):
         cs = dict(cs)
-        deps_ok = all(by_id[d]["state"] in TERMINAL for d in cs["depends_on"] if d in by_id)
+        # An unknown dependency id counts as not landed, here and in require():
+        # the gate fails closed and the dashboard says the same thing (issue #14).
+        deps_ok = all(d in by_id and by_id[d]["state"] in TERMINAL for d in cs["depends_on"])
         n = pr_number(p, cs)
         if cs["kind"] == "pr":
             if n:
@@ -101,7 +103,7 @@ def require(ctx, p: dict, cs_id: str) -> str:
     cs = {c["id"]: c for c in states(ctx, p)}
     if cs_id not in cs:
         return "no ordering constraints"
-    waiting = [d for d in cs[cs_id]["depends_on"] if cs[d]["state"] not in TERMINAL]
+    waiting = [d for d in cs[cs_id]["depends_on"] if d not in cs or cs[d]["state"] not in TERMINAL]
     if waiting:
         raise Waiting(f"{cs_id} must wait for {', '.join(waiting)} to land first")
     return "dependencies landed: " + (", ".join(cs[cs_id]["depends_on"]) or "none")
