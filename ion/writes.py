@@ -211,15 +211,21 @@ class Broker:
             result = fn() if fn else self._rest(req)
         except Exception as e:  # noqa: BLE001
             ok, detail = False, str(e)[:300]
+            self._log(req, ok, detail)
             raise
-        finally:
-            self.counts[req.type] = self.counts.get(req.type, 0) + 1
-            self.total += 1
-            if req.type in REPO_CHANGING and req.repo != cfg["tracker_repo"]:
-                self.touched.add(req.repo)
-            self.ctx.db.x("insert into write_log(ts,type,repo,target,proposal,ok,detail) values(?,?,?,?,?,?,?)",
-                          (iso(), req.type, req.repo, req.target, req.proposal, int(ok), detail))
+        # Only a write that happened uses a cap slot or touches a repo. A failed
+        # write is still logged above with ok=0, but it changed nothing, so it
+        # must not burn the blast-radius budget (issue #60).
+        self.counts[req.type] = self.counts.get(req.type, 0) + 1
+        self.total += 1
+        if req.type in REPO_CHANGING and req.repo != cfg["tracker_repo"]:
+            self.touched.add(req.repo)
+        self._log(req, ok, detail)
         return result
+
+    def _log(self, req: WriteRequest, ok: bool, detail: str) -> None:
+        self.ctx.db.x("insert into write_log(ts,type,repo,target,proposal,ok,detail) values(?,?,?,?,?,?,?)",
+                      (iso(), req.type, req.repo, req.target, req.proposal, int(ok), detail))
 
     def _rest(self, req: WriteRequest):
         gh, org, r, p = self.ctx.gh, self.ctx.cfg.org, req.repo, req.payload
