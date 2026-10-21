@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 
+from .ghclient import GHError
 from .util import Waiting, iso
 
 LABELS = {"ion:proposal": "5319e7", "ion:approved": "0e8a16", "ion:rejected": "b60205", "ion:hold": "fbca04",
@@ -27,9 +28,20 @@ def ensure_labels(ctx) -> None:
             ctx.writes.tracker("create_label", name=name, color=color)
         except Waiting:
             return                                      # cap reached: try again next run
-        except Exception:  # noqa: BLE001  (422 already exists)
-            pass
+        except Exception as e:  # noqa: BLE001
+            if _already_exists(e):
+                continue                                # 422: the label is already there
+            raise                                       # anything else is a real failure: surface
+                                                        # it and leave labels_ready unset, so the
+                                                        # next run retries setup (issue #15)
     ctx.db.kv_set("labels_ready:v2", True)
+
+
+def _already_exists(e: Exception) -> bool:
+    if isinstance(e, GHError) and e.status == 422:
+        return True
+    msg = str(e).lower()
+    return "422" in msg or "already exists" in msg
 
 
 def _changeset_section(ctx, p: dict) -> list[str]:
