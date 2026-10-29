@@ -31,3 +31,14 @@ def test_moved_attempt_rejected():
         return dict(head_sha='abc', run_attempt=next(attempts), status='completed', conclusion='startup_failure')
     with pytest.raises(RuntimeError, match='changed'):
         m.diagnose('owner/repo', 1, get)
+
+
+def test_policy_read_is_recorded_without_claiming_historical_cause():
+    run = dict(head_sha='abc', run_attempt=1, status='completed', conclusion='startup_failure', html_url='https://example.invalid/run')
+    def get(path):
+        if path.endswith('/actions/permissions'):
+            return {'enabled': True, 'allowed_actions': 'local_only', 'sha_pinning_required': False}
+        return {'total_count': 0, 'jobs': []} if '/jobs?' in path else run
+    result = m.diagnose('owner/repo', 1, get)
+    assert result['actions_permissions']['allowed_actions'] == 'local_only'
+    assert result['cause'] == 'unestablished'

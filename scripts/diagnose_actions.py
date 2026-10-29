@@ -40,7 +40,12 @@ def diagnose(repo, run_id, get=gh_get):
     for key in ('head_sha', 'run_attempt', 'status', 'conclusion'):
         if fresh.get(key) != run.get(key):
             raise RuntimeError('run changed during collection; retry')
-    return {'repository': repo, 'run_id': int(run_id), 'head_sha': run['head_sha'],
+    try:
+        policy = get(f'repos/{repo}/actions/permissions')
+        policy = {k: policy.get(k) for k in ('enabled', 'allowed_actions', 'sha_pinning_required')}
+    except Exception:
+        policy = {'readable': False}
+    return {'actions_permissions': policy, 'repository': repo, 'run_id': int(run_id), 'head_sha': run['head_sha'],
             'attempt': run.get('run_attempt'), 'status': run['status'], 'conclusion': run.get('conclusion'),
             'url': run['html_url'], 'job_count': len(jobs),
             'execution': 'blocked_before_jobs' if run.get('conclusion') == 'startup_failure' and not jobs else 'inspect_jobs',
