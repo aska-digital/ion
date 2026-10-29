@@ -51,7 +51,13 @@ def evaluate(ctx, p: dict, ignore_ttl: bool = False, at: dt.datetime | None = No
         if r["plan_hash"] != p["plan_hash"]:
             stale += 1                        # given for a different plan than the one now proposed
             continue
-        latest[(r["source"], r["actor"])] = dict(r)
+        actor = r["actor"].lower()
+        if r["source"] == "divan_bus":
+            mapping = {seat.lower(): login.lower() for seat, login in cfg["bus"].get("seat_logins", {}).items()}
+            actor = mapping.get(actor, "")
+        if actor not in maint:
+            continue
+        latest[("identity", actor)] = dict(r)
     actions = {k: v for k, v in latest.items()}
     if any(v["action"] == "reject" for v in actions.values()):
         return {"state": "rejected", "approvers": [], "reason": "rejected by a maintainer", "stale": stale}
@@ -59,7 +65,7 @@ def evaluate(ctx, p: dict, ignore_ttl: bool = False, at: dt.datetime | None = No
         return {"state": "held", "approvers": [], "reason": "on hold", "stale": stale}
     approvers = {}
     for (src, actor), v in actions.items():
-        if v["action"] == "approve" and (src == "divan_bus" or actor.lower() in maint):
+        if v["action"] == "approve" and actor.lower() in maint:
             approvers[actor.lower()] = v["event_ts"]
     need = quorum_for(cfg, p["kind"])
     if len(approvers) < need:
