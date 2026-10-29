@@ -9,7 +9,7 @@ from .collect.mirror import mirror_path as default_mirror_path
 from .collect.mirror import remote_url as default_remote_url
 from .config import Config
 from .db import DB
-from .ghclient import GH
+from .ghclient import GH, make_gh
 from .util import home
 
 
@@ -25,7 +25,7 @@ def default_bus_runner(argv: list[str], env: dict | None = None, input: str | No
 class Context:
     cfg: Config
     db: DB
-    gh: GH = field(default_factory=GH)
+    gh: GH | None = None
     llm: object | None = None
     bus_runner: object = default_bus_runner
     remote_url_fn: object | None = None
@@ -36,6 +36,8 @@ class Context:
     _own_login: str | None = None
 
     def __post_init__(self):
+        if self.gh is None:
+            self.gh = make_gh(self.cfg)
         from .writes import Broker
         self.writes = Broker(self)
 

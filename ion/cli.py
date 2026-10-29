@@ -65,8 +65,6 @@ def make_ctx(args, no_mirror=False) -> Context:
     from .propose.llm import make_llm
     cfg = load_config(args.config)
     ctx = Context(cfg=cfg, db=DB(), sync_mirrors=not no_mirror)
-    from .ghclient import GH
-    ctx.gh = GH()
     ctx.llm = make_llm(cfg)
     return ctx
 

@@ -17,13 +17,21 @@ def doctor(ctx, cfg_error: str | None = None) -> list[dict]:
     out = []
     out.append(_ok("config", cfg_error is None and bool(cfg.get("org")), cfg_error or f"{cfg.get('_path')} (org={cfg.get('org')})"))
     out.append(_ok("python", sys.version_info >= (3, 12), sys.version.split()[0]))
-    gh = which("gh")
-    if gh:
-        p = subprocess.run([gh, "auth", "status"], capture_output=True, text=True)
-        line = next((l.strip() for l in (p.stdout + p.stderr).splitlines() if "Logged in" in l), "not logged in")
-        out.append(_ok("gh auth", p.returncode == 0, line))
+    if getattr(ctx.gh, "is_app", False):
+        try:
+            actor = ctx.gh.token_login()
+            ctx.gh.rest("GET", "/installation/repositories?per_page=1")
+            out.append(_ok("GitHub App auth", True, actor + "; API only, git transport unsupported"))
+        except Exception:
+            out.append(_ok("GitHub App auth", False, "App credentials or installation could not be verified"))
     else:
-        out.append(_ok("gh auth", False, "gh not found"))
+        gh = which("gh")
+        if gh:
+            p = subprocess.run([gh, "auth", "status"], capture_output=True, text=True)
+            line = next((l.strip() for l in (p.stdout + p.stderr).splitlines() if "Logged in" in l), "not logged in")
+            out.append(_ok("gh auth", p.returncode == 0, line))
+        else:
+            out.append(_ok("gh auth", False, "gh not found"))
     g = which("git")
     ver = subprocess.run(["git", "--version"], capture_output=True, text=True).stdout.strip() if g else "missing"
     sub = g and subprocess.run(["git", "subtree"], capture_output=True, text=True).returncode in (0, 129)

@@ -27,6 +27,8 @@ def replay(events: list[dict]) -> dict[str, dict]:
 
 def own_login(ctx) -> str | None:
     """The GitHub login Ion writes as (cached). None if it cannot be read."""
+    if getattr(ctx.gh, "is_app", False):
+        return ctx.gh.token_login()  # verified from /app; failure must stop approval sync
     if ctx._own_login is None:
         try:
             ctx._own_login = ((ctx.gh.rest("GET", "/user") or {}).get("login") or "").lower()
@@ -41,6 +43,8 @@ def authorised(ctx, actor: str, maint: set[str]) -> tuple[bool, str]:
     Ion's own label events never reach this check: it puts decision labels on only to mirror a bus decision, and it
     remembers the event id (`mirrored_labels`) so those are skipped. A login is not used to recognise Ion, because in
     phase 1 Ion runs on a maintainer's own token and the two logins coincide."""
+    if getattr(ctx.gh, "is_app", False) and actor == own_login(ctx):
+        return False, "GitHub App cannot approve its own proposal"
     if actor in maint:
         return True, ""
     return False, f"label added by {actor or 'unknown'}, who is not a maintainer"
@@ -55,6 +59,7 @@ def sync_labels(ctx, p: dict) -> dict:
     out = {"recorded": 0, "ignored": [], "removed": []}
     if not n:
         return out
+    app_actor = own_login(ctx) if getattr(ctx.gh, "is_app", False) else None
     events = ctx.gh.paginate(f"{tracker.repo_path(ctx)}/issues/{n}/timeline")
     maint = core.maintainers_for(ctx, p)
     mirrored = {r["event_id"] for r in ctx.db.q("select event_id from mirrored_labels where proposal=?", (p["id"],))}
@@ -63,7 +68,7 @@ def sync_labels(ctx, p: dict) -> dict:
         for e in st["labeled"]:
             eid = str(e.get("id"))
             actor = ((e.get("actor") or {}).get("login") or "").lower()
-            if eid in mirrored:
+            if eid in mirrored or (app_actor and actor == app_actor):
                 continue                                  # applied by ion itself, counted via its bus source
             ok, reason = authorised(ctx, actor, maint)
             if core.record(ctx.db, p["id"], "github_label", actor, action, e.get("created_at") or "", eid, ok, reason):
@@ -73,7 +78,7 @@ def sync_labels(ctx, p: dict) -> dict:
         if st["present"] and st["labeled"]:
             last = st["labeled"][-1]
             lactor = ((last.get("actor") or {}).get("login") or "").lower()
-            if str(last.get("id")) not in mirrored and not authorised(ctx, lactor, maint)[0]:
+            if lactor != app_actor and str(last.get("id")) not in mirrored and not authorised(ctx, lactor, maint)[0]:
                 try:
                     ctx.writes.tracker("remove_label", number=int(n), label=label)
                     out["removed"].append((label, lactor))

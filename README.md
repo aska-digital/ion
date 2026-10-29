@@ -233,3 +233,21 @@ Copyright 2026 ASKA Business Solutions and the Ion contributors. Apache-2.0, see
 - **Lattices.** In a crystal, ions sit on the points of a lattice, and the pull between them holds the structure together. ion's job is the same: keep the org's structure sound. It watches how repos relate, proposes merges and splits, and holds policy steady. It also fits Exo's lattice theme: the incentre lattice, the exosphere, x0.
 - **Charge, applied with care.** An ion carries charge, and charge only does work along a path. ion acts only through approved paths: the `ion:approved` label or a signed bus message. It makes no silent changes.
 - **The amp team.** Current is ions in motion, measured in amperes. ion is reviewed, and likely powered, by the amp team, whose specialty is reviewing.
+
+### GitHub App API authentication (opt-in)
+
+The default `auth.backend: gh_cli` uses the existing `gh` login. An existing GitHub App installation can instead authenticate API reads and brokered writes with:
+
+```yaml
+auth:
+  backend: github_app
+  client_id: Iv1.your-client-id
+  installation_id: 12345
+  private_key_path: ~/.ion/app-private-key.pem
+```
+
+Keep the RSA private key outside the repository, readable only by the service user. OpenSSL must be installed. Ion signs RS256 JWTs locally, mints installation tokens in memory, and refreshes them a minute before expiry. Tokens and JWTs never enter subprocess arguments, git configuration, database state or error messages. A 401 invalidates the cached token for the next request; writes are never automatically replayed after an uncertain response. GitHub App identity comes from `GET /app`; its bot label events cannot approve proposals even if that bot was mistakenly listed as a maintainer. API requests and pagination stay on `api.github.com`; enterprise hosts are unsupported.
+
+This initial backend supports API operations only. Use `ion collect --no-mirror` or `ion run --no-mirror`. Mirror collection and git-based executors (`merge`, `split`, `move_code`, `autofix`, and `health_fix`) refuse App mode before executing their steps. There is no fallback to personal credentials. API-only policy, archive, rename and repository creation still require the ordinary approval and broker guards. Local mirror-based analysis can only inspect existing cache data.
+
+Ion does not create or install an App, grant permissions, or change an account. Configure an installation covering the tracker and intended repositories with the read/write permissions needed by the features you enable; insufficient installation permissions surface as API errors. `ion doctor` verifies the configured App identity and installation API access. See GitHub's [JWT documentation](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-json-web-token-jwt-for-a-github-app) and [installation-token documentation](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app).

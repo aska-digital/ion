@@ -103,6 +103,8 @@ class Executor:
 
     # execution ------------------------------------------------------------------------
     def apply(self, p: dict, plan: Plan | None = None, dry_run: bool = True) -> dict:
+        if not getattr(self.gh, "supports_git", True) and self.kind in {"merge", "split", "move_code", "autofix", "health_fix"}:
+            raise Refused("GitHub App git transport is unsupported for this executor")
         basis = check_gate(self.ctx, p)          # enforced for dry runs too: no plan output without standing
         plan = plan or self.plan(p)
         if dry_run:
@@ -144,9 +146,13 @@ class Executor:
 
     def g(self, argv: list[str], cwd=None, **kw):
         """Guarded git (refuses force pushes, branch deletion)."""
+        if not getattr(self.gh, "supports_git", True):
+            raise Refused("GitHub App git transport is unsupported; no personal-token fallback")
         return git([*argv], cwd=cwd, **kw)
 
     def auth(self, url: str) -> list[str]:
+        if not getattr(self.gh, "supports_git", True):
+            raise Refused("GitHub App git transport is unsupported; no personal-token fallback")
         from ..collect.mirror import CRED_HELPER
         return ["-c", "credential.helper=", "-c", f"credential.helper={CRED_HELPER}"] if url.startswith("https://") else []
 
