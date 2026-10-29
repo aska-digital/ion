@@ -11,8 +11,9 @@ from .base import Executor, Plan, Step, filter_args
 from .provenance import origin_callback
 
 
-def protection_body(settings: dict) -> dict:
-    return {
+def protection_body(settings: dict, current: dict | None = None) -> dict:
+    current = current or {}
+    body = {
         "required_status_checks": None,
         "enforce_admins": bool(settings.get("enforce_admins", False)),
         "required_pull_request_reviews": ({"required_approving_review_count": int(settings.get("required_approvals", 0))}
@@ -21,6 +22,31 @@ def protection_body(settings: dict) -> dict:
         "allow_force_pushes": bool(settings.get("allow_force_pushes", False)),
         "allow_deletions": bool(settings.get("allow_deletions", False)),
     }
+    checks = current.get("required_status_checks")
+    if checks is not None:
+        if "strict" not in checks:
+            raise SafetyError("cannot preserve status checks: strictness was not returned")
+        body["required_status_checks"] = {"strict": bool(checks["strict"]), "contexts": list(checks.get("contexts") or [])}
+        if "checks" in checks:
+            body["required_status_checks"]["checks"] = [{k: c[k] for k in ("context", "app_id") if k in c} for c in checks["checks"]]
+    def actors(value):
+        return {kind: [x if isinstance(x, str) else x[field] for x in value.get(kind, [])]
+                for kind, field in (("users", "login"), ("teams", "slug"), ("apps", "slug"))}
+    if current.get("restrictions") is not None:
+        body["restrictions"] = actors(current["restrictions"])
+    reviews = current.get("required_pull_request_reviews")
+    if reviews and body["required_pull_request_reviews"] is not None:
+        for key in ("dismiss_stale_reviews", "require_code_owner_reviews", "require_last_push_approval"):
+            if key in reviews:
+                body["required_pull_request_reviews"][key] = reviews[key]
+        for key in ("dismissal_restrictions", "bypass_pull_request_allowances"):
+            if key in reviews:
+                body["required_pull_request_reviews"][key] = actors(reviews[key])
+    for key in ("required_linear_history", "required_conversation_resolution", "block_creations", "lock_branch", "allow_fork_syncing"):
+        if key in current:
+            value = current[key]
+            body[key] = bool(value.get("enabled")) if isinstance(value, dict) else bool(value)
+    return body
 
 
 def apply_policy_fix(ctx, fix: dict, proposal: str | None = None) -> str:
