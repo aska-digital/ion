@@ -275,3 +275,15 @@ def test_llm_call_cap_and_none_backend():
     assert not NoneLLM(load_config(None, {"org": "o"})).enabled
     with pytest.raises(LLMError):
         NoneLLM(load_config(None, {"org": "o"})).complete_json("x")
+
+
+def test_merge_archive_always_creates_a_separate_approval(ctx):
+    from helpers import MERGE, new_proposal
+    from ion.execute import executor_for
+    p = new_proposal(ctx, "merge", MERGE)
+    ctx.cfg["archive_requires_second_approval"] = False  # even a legacy/in-memory config cannot bypass the rule
+    plan = executor_for(ctx, "merge")._archive(p, p["subject"])
+    plan.steps[-1].fn()
+    child = proposals.view(ctx.db.one("select * from proposals where parent=?", (p["id"],)))
+    assert child["kind"] == "archive" and child["status"] == "awaiting-approval"
+    assert not ctx.gh.archived
