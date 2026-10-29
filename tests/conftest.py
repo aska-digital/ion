@@ -140,8 +140,18 @@ class FakeGH:
     def rest(self, method, path, body=None):
         if method != "GET":
             self.writes.append((method, path, body))
-        parts = path.strip("/").split("/")
+        from urllib.parse import urlsplit, parse_qs
+        parsed = urlsplit(path)
+        parts = parsed.path.strip("/").split("/")
         if method == "GET":
+            if len(parts) == 4 and parts[3] == "pulls":
+                query = parse_qs(parsed.query)
+                head = query.get("head", [":"])[0].split(":", 1)[-1]
+                base = query.get("base", [""])[0]
+                return [{"number": n, "state": "closed" if (repo, n) in self.merged else "open",
+                         "merged_at": "2099-01-01T00:00:00Z" if (repo, n) in self.merged else None}
+                        for (repo, n), pr in self.prs.items()
+                        if repo == parts[2] and pr["head"] == head and pr["base"] == base]
             if len(parts) == 3 and parts[0] == "repos":
                 if parts[2] in {p.name[:-4] for p in self.remotes.glob("*.git")} or parts[2] in self.archived:
                     return {"name": parts[2], "archived": parts[2] in self.archived, "private": self.private.get(parts[2], False),

@@ -149,3 +149,5 @@ Webhooks or a live server (polling once a day is enough); cross-org work; auto-m
 | 12 | Org-wide grep and autofixers over mirrors | `fleet.py`, `execute/autofix.py` |
 
 The ideas come from published designs of other projects; no code was copied. Credits are in the README.
+
+PR-opening steps recover a prior effect by looking up the exact proposal head and base before POST. Open and merged matches are reused; ambiguous or closed unmerged matches refuse. Subtree retries reset their owned scratch checkout before importing; filters restart from fresh source clones. Split pushes accept only the single expected remote branch at the exact local tip. Archive follow-ups reuse the existing parent/kind/repository proposal. These checks cover the documented crash windows without forcing any remote ref.

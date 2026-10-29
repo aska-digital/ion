@@ -33,10 +33,14 @@ class SplitExecutor(Executor):
             if not fr:
                 raise RuntimeError("git-filter-repo not found")
             # --force is filter-repo's own flag, local clone only; the callback stamps Ion-Origin on every commit
-            self.g(["filter-repo", *fargs, "--commit-callback", origin_callback(self.cfg.org, A), "--force"], cwd=cdir)
+            self.restart_filter(a_url, cdir, dirs, A)
+
+        def remote_refs() -> dict:
+            result = self.g([*self.auth(n_url), "ls-remote", "--refs", n_url])
+            return {ref: sha for sha, ref in (line.split() for line in result.stdout.splitlines())}
 
         def has_refs() -> bool:
-            return bool(self.g([*self.auth(n_url), "ls-remote", n_url], check=False).stdout.strip())
+            return bool(remote_refs())
 
         def create():
             try:
@@ -64,8 +68,12 @@ class SplitExecutor(Executor):
             return "created"
 
         def push():
-            if has_refs():
-                raise SafetyError(f"{N} already has refs; refusing to push into a non-empty repo")
+            refs = remote_refs()
+            if refs:
+                expected = self.g(["rev-parse", "HEAD"], cwd=cdir).stdout.strip()
+                if refs == {f"refs/heads/{base}": expected}:
+                    return "already pushed the verified local tip"
+                raise SafetyError(f"{N} already has unexpected refs; refusing to push into a non-empty repo")
             self.g(["remote", "remove", "origin"], cwd=cdir, check=False)
             self.g(["remote", "add", "origin", n_url], cwd=cdir)
             self.safe_push(["origin", f"HEAD:refs/heads/{base}"], cdir, base, allow_default=True, repo=N)
