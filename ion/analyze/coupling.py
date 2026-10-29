@@ -225,7 +225,10 @@ def dup_signal(a: RepoData, b: RepoData, min_bytes: int = 200, near: float = 0.8
         used.add(pa)
         near_bytes += fa[pa][1]
         near_pairs.append((pa, pb, round(sim, 2)))
-    denom = min(a.eligible_bytes, b.eligible_bytes)
+    # Tiny shared scaffolding is weak evidence even when it is all of a small repo.
+    # Use the larger corpus and a 4 KiB evidence floor to prevent one config file
+    # from saturating the duplication signal.
+    denom = max(a.eligible_bytes, b.eligible_bytes, 4096)
     score = min(1.0, (exact_bytes + near_bytes) / denom) if denom else 0.0
     return score, {"exact": exact[:10], "exact_count": len(exact), "near": near_pairs[:10], "near_count": len(near_pairs),
                    "shared_bytes": exact_bytes + near_bytes}
