@@ -27,7 +27,7 @@ class AutofixExecutor(Executor):
 
             def fix(repo=repo, w=w, url=url, base=base):
                 snap = {"default_branch": base, "description": self._description(repo)}
-                got = digest(diff_of(self.ctx, fixer, repo, snap, w, url))
+                got = digest(diff_of(self.ctx, fixer, repo, snap, w, url, auth=self.auth(url)))
                 want = s["diffs"].get(repo)
                 if got != want:
                     raise RuntimeError(f"{repo}: the change differs from the approved diff ({got[:12]} != {str(want)[:12]}); "

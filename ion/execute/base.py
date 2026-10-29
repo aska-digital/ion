@@ -153,9 +153,18 @@ class Executor:
     def clone(self, url: str, dest, mirror_of: bool = False) -> None:
         from pathlib import Path
         if (Path(dest) / ".git").exists():
+            self.configure_auth(url, dest)
             return
         Path(dest).parent.mkdir(parents=True, exist_ok=True)
         self.g([*self.auth(url), "clone", "--quiet", "--no-local", url, str(dest)])
+        self.configure_auth(url, dest)
+
+    def configure_auth(self, url: str, dest) -> None:
+        """Keep subsequent fetches and pushes bound to the same gh identity as clone."""
+        if url.startswith("https://"):
+            from ..collect.mirror import CRED_HELPER
+            self.g(["config", "--local", "--replace-all", "credential.helper", ""], cwd=dest)
+            self.g(["config", "--local", "--add", "credential.helper", CRED_HELPER], cwd=dest)
 
     def verify_filtered(self, p: dict, source: str, base: str, dirs: list[str], filtered_dir) -> dict:
         """Exact check of a filter-repo result: tree equality plus commit-map coverage (see provenance.py)."""

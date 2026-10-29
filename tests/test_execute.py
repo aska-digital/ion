@@ -459,3 +459,30 @@ def test_runner_skips_unapproved_and_shows_plan_when_asked(ctx):
     r = run_execute(ctx, p["id"])
     assert r["skipped"] and "git subtree add" in "\n".join(r["plans"][p["id"]])
     assert not ctx.gh.writes_to("POST", "/pulls")
+
+
+def test_executor_clones_persist_only_gh_helper(ctx, world, tmp_path, monkeypatch):
+    from ion.execute.base import Executor
+    from ion.collect.mirror import CRED_HELPER
+    ex = Executor(ctx)
+    real = ex.g
+    local = str(world / "mono.git")
+    def redirected(args, **kw):
+        args = [local if a == "https://github.com/acme/mono" else a for a in args]
+        return real(args, **kw)
+    monkeypatch.setattr(ex, "g", redirected)
+    dest = tmp_path / "credential-clone"
+    ex.clone("https://github.com/acme/mono", dest)
+    assert real(["config", "--local", "--get-all", "credential.helper"], cwd=dest).stdout.splitlines() == ["", CRED_HELPER]
+    ex.clone("https://github.com/acme/mono", dest)
+    assert real(["config", "--local", "--get-all", "credential.helper"], cwd=dest).stdout.splitlines() == ["", CRED_HELPER]
+
+
+def test_fleet_authenticated_checkout_keeps_helper(ctx, world, tmp_path):
+    from ion.execute.base import Executor
+    from ion.fleet import checkout
+    from ion.collect.mirror import CRED_HELPER
+    ex = Executor(ctx)
+    dest = tmp_path / "fleet-auth"
+    checkout(ctx, str(world / "mono.git"), dest, "main", auth=ex.auth("https://github.com/acme/mono"))
+    assert ex.g(["config", "--local", "--get-all", "credential.helper"], cwd=dest).stdout.splitlines() == ["", CRED_HELPER]

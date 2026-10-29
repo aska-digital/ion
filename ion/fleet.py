@@ -189,16 +189,20 @@ class DependabotConfig(Autofixer):
 
 # ---- preview ---------------------------------------------------------------------------------------------
 
-def checkout(ctx, source_url: str, dest: Path, branch: str) -> None:
+def checkout(ctx, source_url: str, dest: Path, branch: str, auth: list[str] | None = None) -> None:
     if dest.exists():
         shutil.rmtree(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    git(["clone", "--quiet", "--no-local", "--branch", branch, source_url, str(dest)])
+    git([*(auth or []), "clone", "--quiet", "--no-local", "--branch", branch, source_url, str(dest)])
+    if auth:
+        from .collect.mirror import CRED_HELPER
+        git(["config", "--local", "--replace-all", "credential.helper", ""], cwd=dest)
+        git(["config", "--local", "--add", "credential.helper", CRED_HELPER], cwd=dest)
 
 
-def diff_of(ctx, fixer: Autofixer, repo: str, snap: dict, workdir: Path, url: str | None = None) -> str:
+def diff_of(ctx, fixer: Autofixer, repo: str, snap: dict, workdir: Path, url: str | None = None, auth: list[str] | None = None) -> str:
     """Fresh checkout of the repo (from its mirror unless `url` is given), apply the fixer, return the staged diff."""
-    checkout(ctx, url or str(ctx.mirror_path(repo)), workdir, snap["default_branch"])
+    checkout(ctx, url or str(ctx.mirror_path(repo)), workdir, snap["default_branch"], auth=auth)
     fixer.apply(workdir, repo, snap)
     git(["add", "-A"], cwd=workdir)
     return git(["diff", "--cached", "--no-color"], cwd=workdir).stdout
