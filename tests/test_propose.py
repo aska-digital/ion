@@ -275,3 +275,17 @@ def test_llm_call_cap_and_none_backend():
     assert not NoneLLM(load_config(None, {"org": "o"})).enabled
     with pytest.raises(LLMError):
         NoneLLM(load_config(None, {"org": "o"})).complete_json("x")
+
+
+def test_reanalysis_freezes_executing_subject(ctx):
+    from helpers import MERGE, new_proposal
+    from ion.propose.engine import _refresh_existing
+    p = new_proposal(ctx, "merge", MERGE)
+    proposals.set_status(ctx.db, p["id"], "executing")
+    before = proposals.get(ctx.db, p["id"])
+    candidate = {"kind": "merge", "subject": {**MERGE, "source_branch": "release"}, "score": .99, "evidence": {}}
+    result = {"updated": [], "replanned": []}
+    _refresh_existing(ctx, before, candidate, result)
+    after = proposals.get(ctx.db, p["id"])
+    assert after["subject"] == before["subject"]
+    assert after["plan_hash"] == before["plan_hash"] and not result["replanned"]
