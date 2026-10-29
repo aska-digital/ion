@@ -117,6 +117,7 @@ def test_failed_notifier_queues_and_retries(tmp_path, home, world):
 
 
 def test_digest_only_when_something_changed(ctx):
+    ctx.cfg["thresholds"]["persist_runs"] = 1  # this test exercises digest state, not persistence
     run_collect(ctx); run_analyze(ctx)
     res = {"propose": run_propose(ctx)}
     text, changed = report.build_digest(ctx, res)
