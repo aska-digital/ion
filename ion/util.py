@@ -128,11 +128,12 @@ def guard_git(argv: list[str], default_branch: str | None = None) -> None:
     args = [a for a in argv[1:]]
     if "push" in args:
         for a in args:
-            if a in FORBIDDEN_GIT_FLAGS or a.startswith("+") or a.startswith("--force"):
+            if (a in FORBIDDEN_GIT_FLAGS or a in ("-d", "--prune") or a.startswith("+") or a.startswith("--force")
+                    or (a.startswith("-") and not a.startswith("--") and any(c in a[1:] for c in "fdD"))):
                 raise SafetyError(f"refusing forced or destructive push: {a}")
             if a.startswith(":"):
                 raise SafetyError("refusing to delete a remote ref")
-    if "branch" in args and ("-D" in args or "-d" in args or "--delete" in args):
+    if "branch" in args and any(a == "--delete" or (a.startswith("-") and not a.startswith("--") and any(c in a[1:] for c in "dD")) for a in args):
         raise SafetyError("refusing to delete a branch")
 
 

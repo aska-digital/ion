@@ -123,7 +123,7 @@ class SplitExecutor(Executor):
 
         def edit():
             self.g(["checkout", "-q", "-B", branch, f"origin/{base}"], cwd=w)
-            self.g(["rm", "-r", "-q", *dirs], cwd=w)
+            self.g(["rm", "-r", "-q", "--", *dirs], cwd=w)
             safe_write(w, "MOVED.md",
                 f"# Moved\n\n`{', '.join(dirs)}` now live in "
                 f"[{self.cfg.org}/{N}](https://github.com/{self.cfg.org}/{N}) with their full history.\n")
