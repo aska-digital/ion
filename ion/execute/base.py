@@ -123,6 +123,9 @@ class Executor:
                 self.db.ledger_add(pid, key, "waiting", str(w))
                 waiting = str(w)
                 break
+            except Refused as e:
+                self.db.ledger_add(pid, key, "stopped", str(e))
+                raise
             except Exception as e:  # noqa: BLE001
                 self.db.ledger_add(pid, key, "error", str(e))
                 self.db.x("update proposals set status='failed' where id=?", (pid,))

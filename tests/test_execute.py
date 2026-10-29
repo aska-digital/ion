@@ -459,3 +459,19 @@ def test_runner_skips_unapproved_and_shows_plan_when_asked(ctx):
     r = run_execute(ctx, p["id"])
     assert r["skipped"] and "git subtree add" in "\n".join(r["plans"][p["id"]])
     assert not ctx.gh.writes_to("POST", "/pulls")
+
+
+def test_refused_step_remains_executing_and_resumes(ctx):
+    from ion.execute.base import Executor, Plan, Step
+    p = prep(ctx, "archive", {"repo": "old-tool"})
+    ex = Executor(ctx)
+    def stop():
+        raise Refused("kill switch changed")
+    plan = Plan(p["id"], "archive", "test", [Step("write", "write", fn=stop)])
+    with pytest.raises(Refused):
+        ex.apply(p, plan, dry_run=False)
+    current = proposals.get(ctx.db, p["id"])
+    assert current["status"] == "executing"
+    assert not ctx.db.ledger_done(p["id"], "test.write")
+    plan.steps[0].fn = lambda: "recovered"
+    assert ex.apply(current, plan, dry_run=False)["done"] == ["test.write"]
