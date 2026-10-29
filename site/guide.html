@@ -74,7 +74,7 @@ uv run ion --config ion.yml dashboard    <span class="cm"># the Org health issue
   <p>Every repo can override the org config in its own <code>.github/ion.yml</code>: who maintains it, whether ion governs it at all, and its policy action levels. Two settings shape your first month more than any others:</p>
   <ul class="plain">
     <li><code>policy_strategy: opt-out</code> (the default) governs every repo unless that repo says <code>enabled: false</code>. Choose <code>opt-in</code> to govern only repos that ask.</li>
-    <li><code>policy_actions</code> sets, per policy class, what a drift finding does: <code>log</code> records it, <code>issue</code> proposes it and waits for approval, <code>fix</code> applies it unattended. Start everything at <code>issue</code>. Promote a class to <code>fix</code> only after its proposals have bored you for weeks. Structural kinds can never be <code>fix</code>.</li>
+    <li><code>policy_actions</code> sets, per policy class, what a drift finding does: <code>log</code> records it, <code>issue</code> proposes it and waits for approval, <code>fix</code> applies it unattended. Start everything at <code>issue</code>. Promote a class to <code>fix</code> only after its proposals have bored you for weeks. Structural kinds can never be <code>fix</code>. For <code>required_files</code>, only a missing README can produce a proposal or skeleton fix. Missing LICENSE and other required files are reported as drift only; maintainers add them themselves.</li>
   </ul>
   <div class="scrollx"><table class="tb">
     <thead><tr><th>Key</th><th>Meaning</th></tr></thead>

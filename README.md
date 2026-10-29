@@ -71,7 +71,7 @@ Keys worth knowing:
 | `approval_sources` | `github_label` (default), `divan_bus`, `dashboard` (checkboxes on the Org health issue) |
 | `notifiers` | list of `stdout`, `file`, `divan_bus`, `github_issue`, `webhook` |
 | `llm.backend` | `none` (default), `claude_cli`, `anthropic_api` |
-| `policy_actions` | per policy class (`branch_protection`, `dependabot_alerts`, `secret_scanning`, `required_files`): `log` (record only), `issue` (propose, needs approval; the default) or `fix` (apply unattended). `auto_apply` is the old spelling of `fix`. |
+| `policy_actions` | per policy class (`branch_protection`, `dependabot_alerts`, `secret_scanning`, `required_files`): `log` (record only), `issue` (propose, needs approval; the default) or `fix` (apply unattended). `auto_apply` is the old spelling of `fix`. For `required_files`, only missing README files produce proposals or fixes; LICENSE and other files are report-only. |
 | `policy_strategy` | `opt-out` (default: every repo is governed unless it sets `enabled: false`) or `opt-in` |
 | `guards` | circuit breaker: `max_repo_fraction`, `min_repos`, `max_archives`, `max_writes`, `forbid_protection_lowering` |
 | `writes.caps` | per-run cap by write type, for example `{open_pr: 5, archive_repo: 1}` |
