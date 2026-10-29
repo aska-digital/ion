@@ -46,7 +46,7 @@ class MergeExecutor(Executor):
 
         def subtree():
             tip = self.g(["--git-dir", str(mirror), "rev-parse", src_branch]).stdout.strip()
-            self.g([*self.identity_args(), "subtree", "add", f"--prefix={s['prefix']}", str(mirror), src_branch,
+            self.subtree_add([*self.identity_args(), "subtree", "add", f"--prefix={s['prefix']}", str(mirror), src_branch,
                     "-m", f"Merge {A} into {B} under {s['prefix']}/ (history preserved) [{pid}]\n\n"
                           f"Ion-Proposal: {pid}\nIon-Origin: {self.cfg.org}/{A}@{tip}"], cwd=tdir)
 

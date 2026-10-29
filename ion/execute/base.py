@@ -146,6 +146,19 @@ class Executor:
         """Guarded git (refuses force pushes, branch deletion)."""
         return git([*argv], cwd=cwd, **kw)
 
+    def subtree_add(self, argv: list[str], cwd) -> None:
+        """Attach worktree diagnostics to the intermittent subtree dirty-tree refusal."""
+        try:
+            self.g(argv, cwd=cwd)
+        except RuntimeError as error:
+            if "working tree has modifications" not in str(error):
+                raise
+            status = self.g(["status", "--porcelain=v1", "--untracked-files=all"], cwd=cwd, check=False)
+            diff = self.g(["diff", "--stat"], cwd=cwd, check=False)
+            raise RuntimeError(f"{error}\nsubtree worktree status (rc={status.returncode}): "
+                               f"{status.stdout.strip() or '<clean>'}\n"
+                               f"unstaged diff: {diff.stdout.strip() or '<empty>'}") from error
+
     def auth(self, url: str) -> list[str]:
         from ..collect.mirror import CRED_HELPER
         return ["-c", "credential.helper=", "-c", f"credential.helper={CRED_HELPER}"] if url.startswith("https://") else []
