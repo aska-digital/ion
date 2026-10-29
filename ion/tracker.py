@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import html
+import re
 
 from .util import Waiting, iso
 
@@ -43,6 +45,16 @@ def _changeset_section(ctx, p: dict) -> list[str]:
 
 def render_body(ctx, p: dict, plan_lines: list[str], rollback: list[str], approval: dict | None = None) -> str:
     t, s = p["text"], p["subject"]
+    if t.get("source") == "llm":
+        # Model prose is commentary. Escape HTML and block delimiters before Markdown rendering.
+        def plain(value):
+            if isinstance(value, str):
+                return re.sub(r"([\\`*_{}\[\]()#+.!|>~-])", r"\\\1", html.escape(value, quote=False))
+            if isinstance(value, list):
+                return [plain(v) for v in value]
+            return value
+        t = {k: plain(v) for k, v in t.items()}
+
     ev = json.dumps(p["evidence"], indent=2, default=str)
     if len(ev) > 9000:
         ev = ev[:9000] + "\n... (truncated)"
@@ -54,7 +66,7 @@ def render_body(ctx, p: dict, plan_lines: list[str], rollback: list[str], approv
         "## Blast radius", t.get("blast_radius", ""), "",
         *_changeset_section(ctx, p),
         "## Plan (exact commands, dry-run output)", "```", *plan_lines, "```", "",
-        "## Rollback", *[f"- {r}" for r in (t.get("rollback_plan") or rollback)], "",
+        "## Rollback", *[f"- {r}" for r in rollback], "",
         "## Evidence", "<details><summary>show</summary>", "", "```json", ev, "```", "</details>", "",
         "## How to decide",
         f"Add the label `ion:approved` (or `ion:rejected` / `ion:hold`). Only maintainers count: {maint}. "
