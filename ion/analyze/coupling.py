@@ -181,12 +181,14 @@ def load_repo(name: str, path, ref: str | None, snap: dict | None = None, filter
 def xref_directed(src: RepoData, target: str, org: str | None = None) -> tuple[float, list[str]]:
     """How strongly does `src` reference repo `target`? (0..1, evidence)"""
     t, ev, weights = norm_name(target), [], []
-    pat = re.compile(r"(?<![\w-])" + re.escape(target).replace(r"\-", "[-_]") + r"(?![\w-])", re.I)
     in_deps = t in src.deps
-    gitmod = bool(re.search(r"git(?:hub\.com)?[:/][\w.-]+/" + re.escape(target) + r"(?:\.git)?\b", src.manifest_text, re.I))
-    if in_deps or gitmod or (len(target) >= 4 and pat.search(src.manifest_text)):
+    # A git reference must identify this organisation and the complete repo name.
+    gitmod = bool(org and re.search(
+        r"(?:github\.com[:/])" + re.escape(org) + "/" + re.escape(target)
+        + r"(?:\.git)?(?![\w.-])", src.manifest_text, re.I))
+    if in_deps or gitmod:
         weights.append(1.0)
-        ev.append("named in manifest/dependencies/git URL")
+        ev.append("named dependency or organisation git URL")
     if t in src.imports:
         weights.append(0.7)
         ev.append("imported by source files")
