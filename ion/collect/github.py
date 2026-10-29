@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import logging
+import time
 
-from ..ghclient import GH
+from ..ghclient import GH, GHError
 
 log = logging.getLogger("ion")
 
@@ -85,29 +86,64 @@ class Collected:
         self.warnings: list[str] = []
 
 
-def collect_org(gh: GH, org: str, budget: int, commits: int = 60, page_size: int = 25) -> Collected:
-    """Paginate the org. Stops cleanly when the next page might exceed the budget."""
+def collect_org(gh: GH, org: str, budget: int, commits: int = 60, page_size: int = 25,
+                *, after=None, on_page=None, sleep=time.sleep) -> Collected:
+    """Collect a bounded portion of a pass, retaining its last accepted cursor."""
     out = Collected()
-    after = None
+    out.after = after
     last_cost = 1
     while True:
         if out.cost + last_cost > budget:
             out.partial = True
             out.warnings.append(f"budget of {budget} points reached after {len(out.repos)} repos")
             break
-        body = gh.graphql(QUERY, {"org": org, "after": after, "n": commits, "page": page_size})
-        for e in body.get("errors") or []:
-            out.warnings.append(str(e.get("message", e))[:200])
+        body = None
+        for attempt in range(3):
+            try:
+                candidate = gh.graphql(QUERY, {"org": org, "after": after, "n": commits, "page": page_size})
+                errors = candidate.get("errors") or []
+                if any(e.get("type") == "RATE_LIMITED" for e in errors):
+                    raise GHError("GraphQL rate limited", status=429)
+                body = candidate
+                break
+            except GHError as e:
+                if attempt == 2:
+                    out.partial = True
+                    out.warnings.append(f"collection paused after retries: {e}"[:200])
+                else:
+                    sleep(0.5 * 2 ** attempt)
+        if body is None:
+            break
+        errors = body.get("errors") or []
+        out.warnings.extend(str(e.get("message", e))[:200] for e in errors)
         rl = (body.get("data") or {}).get("rateLimit") or {}
         last_cost = max(1, int(rl.get("cost", 1)))
         out.cost += last_cost
         out.remaining = rl.get("remaining", out.remaining)
-        conn = ((body["data"] or {}).get("organization") or {}).get("repositories") or {}
-        out.repos.extend(normalise(n) for n in conn.get("nodes") or [] if n)
-        info = conn.get("pageInfo") or {}
-        if not info.get("hasNextPage"):
+        conn = (((body.get("data") or {}).get("organization") or {}).get("repositories"))
+        info = (conn or {}).get("pageInfo")
+        if errors or not conn or not isinstance(info, dict) or "hasNextPage" not in info:
+            out.partial = True
+            out.warnings.append("incomplete GraphQL page; cursor retained for next run")
             break
-        after = info.get("endCursor")
+        next_cursor = info.get("endCursor")
+        if info["hasNextPage"] and (not next_cursor or next_cursor == after):
+            out.partial = True
+            out.warnings.append("missing or repeated pagination cursor; page will be retried")
+            break
+        page = [normalise(n) for n in conn.get("nodes") or [] if n]
+        # Persist before moving the cursor: an interrupted next request cannot lose a page.
+        if on_page:
+            on_page(page, next_cursor if info["hasNextPage"] else None)
+        out.repos.extend(page)
+        if not info["hasNextPage"]:
+            out.after = None
+            break
+        after = out.after = next_cursor
+        if out.remaining is not None and out.remaining < last_cost:
+            out.partial = True
+            out.warnings.append(f"rate limit exhausted; reset at {rl.get('resetAt', 'unknown')}")
+            break
     return out
 
 
