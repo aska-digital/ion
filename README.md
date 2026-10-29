@@ -233,3 +233,8 @@ Copyright 2026 ASKA Business Solutions and the Ion contributors. Apache-2.0, see
 - **Lattices.** In a crystal, ions sit on the points of a lattice, and the pull between them holds the structure together. ion's job is the same: keep the org's structure sound. It watches how repos relate, proposes merges and splits, and holds policy steady. It also fits Exo's lattice theme: the incentre lattice, the exosphere, x0.
 - **Charge, applied with care.** An ion carries charge, and charge only does work along a path. ion acts only through approved paths: the `ion:approved` label or a signed bus message. It makes no silent changes.
 - **The amp team.** Current is ions in motion, measured in amperes. ion is reviewed, and likely powered, by the amp team, whose specialty is reviewing.
+
+When an analysis candidate disappears, its awaiting, approved or held proposal is
+dropped and its approvals are revoked. Executing changes and manual/follow-up
+proposals retain their own lifecycle. Analyzer archive writes also re-check live
+push time and lifecycle immediately before archiving; missing push time fails closed.

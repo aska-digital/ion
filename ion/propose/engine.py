@@ -164,6 +164,14 @@ def run_propose(ctx, dry_run: bool = False) -> dict:
     if not dry_run:
         for r in db.q("select key from candidates"):
             if r["key"] not in seen:
+                for proposal in db.q("select * from proposals where key=? and status in ('awaiting-approval','approved','held')", (r["key"],)):
+                    p = proposals.view(proposal)
+                    notes = p["state"].get("notes", []) + [f"{iso()}: obsolete; no longer an analysis candidate"]
+                    db.set_state(p["id"], notes=notes)
+                    proposals.set_status(db, p["id"], "dropped", rejected_at=iso(), rejected_score=p["score"])
+                    _clear_stale_approvals(ctx, p, "candidate obsolete")
+                    refresh_issue(ctx, proposals.get(db, p["id"]))
+                    res["dropped"].append(p["id"])
                 db.x("delete from candidates where key=?", (r["key"],))
     return res
 
