@@ -18,7 +18,7 @@ DEFAULTS: dict = {
     "plan": "free",
     "tracker_repo": "ion-tracker",  # keep this repo PRIVATE: proposal bodies name private repos
     "approval_sources": ["github_label"],
-    "bus": {"url": "http://127.0.0.1:8787", "seat": "ion", "notify": None, "maintainer_seats": [],
+    "bus": {"url": "http://127.0.0.1:8787", "seat": "ion", "notify": None, "maintainer_seats": [], "seat_logins": {},
             "client": None, "python": None, "key": None},
     "notifiers": [{"type": "stdout"}],
     "llm": {"backend": "none", "model_default": "haiku", "model_structural": "sonnet", "max_calls_per_run": 20,
@@ -67,7 +67,8 @@ SCHEMA = {
         "notifiers": {"type": "array", "items": {"type": "object", "required": ["type"],
                       "properties": {"type": {"enum": ["stdout", "file", "divan_bus", "github_issue", "webhook"]}}}},
         "bus": {"type": "object", "properties": {"url": {"type": "string"}, "seat": {"type": "string"},
-                "notify": {"type": ["string", "null"]}, "maintainer_seats": _STR_LIST}},
+                "notify": {"type": ["string", "null"]}, "maintainer_seats": _STR_LIST,
+                "seat_logins": {"type": "object", "additionalProperties": {"type": "string", "minLength": 1}}}},
         "llm": {"type": "object", "properties": {
             "backend": {"enum": ["claude_cli", "anthropic_api", "none"]},
             "max_calls_per_run": {"type": "integer", "minimum": 0}}},

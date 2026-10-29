@@ -143,8 +143,9 @@ def test_repo_override_only_narrows_the_org_list():
 
 def bus_ctx(tmp_path, world, bus, **o):
     cfg = {"approval_sources": ["divan_bus"], "bus": {"client": "/x/divan.py", "python": "/x/py", "seat": "ion",
-                                                         "maintainer_seats": ["saga-divan"], "notify": "saga-divan"}}
+                                                         "maintainer_seats": ["saga-divan"], "seat_logins": {"saga-divan": "bus-maint"}, "notify": "saga-divan"}}
     cfg.update(o)
+    cfg["maintainers"] = list(dict.fromkeys([*cfg.get("maintainers", ["maint"]), "bus-maint"]))
     return make_ctx(tmp_path, world, cfg, bus=bus)
 
 
@@ -214,7 +215,7 @@ def test_bus_down_is_reported_not_fatal(tmp_path, home, world):
 def test_quorum_counts_case_variants_as_one_approver(tmp_path, home, world):
     ctx = make_ctx(tmp_path, world, {"quorum": 2, "maintainers": ["ada"],
                                      "approval_sources": ["github_label", "divan_bus"],
-                                     "bus": {"maintainer_seats": ["Ada"]}})
+                                     "bus": {"maintainer_seats": ["Ada"], "seat_logins": {"Ada": "ada"}}})
     p = setup(ctx)
     ctx.db.set_state(p["id"], hash_log=[["2026-01-01T00:00:00Z", p["plan_hash"]]])
     core.record(ctx.db, p["id"], "divan_bus", "Ada", "approve", FUTURE, "e1", True)
@@ -232,3 +233,23 @@ def test_bus_envelope_without_seq_does_not_break_sync(tmp_path, home, world):
     bus.inbox = [m]
     r = sync_approvals(ctx)
     assert status(ctx, p) == "approved" and not r["errors"]
+
+
+def test_bus_approval_requires_mapped_repo_maintainer(tmp_path, home, world):
+    bus = FakeBus()
+    ctx = bus_ctx(tmp_path, world, bus)
+    p = setup(ctx)
+    ctx.cfg["bus"]["seat_logins"] = {"saga-divan": "outsider"}
+    core.record(ctx.db, p["id"], "divan_bus", "saga-divan", "approve", FUTURE, "blocked", True)
+    assert core.evaluate(ctx, p)["state"] == "awaiting"
+
+
+def test_seat_and_login_of_one_person_do_not_satisfy_quorum(tmp_path, home, world):
+    bus = FakeBus()
+    ctx = bus_ctx(tmp_path, world, bus, quorum=2)
+    p = setup(ctx)
+    ctx.cfg["bus"]["seat_logins"] = {"saga-divan": "maint"}
+    core.record(ctx.db, p["id"], "divan_bus", "saga-divan", "approve", FUTURE, "seat", True)
+    core.record(ctx.db, p["id"], "github_label", "maint", "approve", FUTURE, "login", True)
+    ev = core.evaluate(ctx, p)
+    assert ev["state"] == "awaiting" and ev["approvers"] == ["maint"]
