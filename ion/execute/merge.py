@@ -45,6 +45,8 @@ class MergeExecutor(Executor):
             return str(mirror)
 
         def subtree():
+            self.g(["reset", "--hard", f"origin/{tgt_default}"], cwd=tdir)
+            self.g(["clean", "-fd"], cwd=tdir)
             tip = self.g(["--git-dir", str(mirror), "rev-parse", src_branch]).stdout.strip()
             self.g([*self.identity_args(), "subtree", "add", f"--prefix={s['prefix']}", str(mirror), src_branch,
                     "-m", f"Merge {A} into {B} under {s['prefix']}/ (history preserved) [{pid}]\n\n"

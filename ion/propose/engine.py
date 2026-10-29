@@ -221,8 +221,12 @@ def _refresh_existing(ctx, p: dict, c: dict, res: dict) -> None:
 
 def create_followup(ctx, parent: dict, kind: str, subject: dict) -> dict:
     """A second proposal (e.g. archive after a merge). Needs its own approval."""
+    key = f"{kind}:{subject.get('repo')}:{parent['id']}"
+    existing = ctx.db.one("select id from proposals where key=? and parent=? order by num limit 1", (key, parent["id"]))
+    if existing:
+        return proposals.get(ctx.db, existing["id"])
     plan = plan_for(ctx, kind, subject)
-    cand = {"key": f"{kind}:{subject.get('repo')}:{parent['id']}", "kind": kind, "subject": subject, "score": 0.9,
+    cand = {"key": key, "kind": kind, "subject": subject, "score": 0.9,
             "evidence": {"reasons": [subject.get("reason", "")]}}
     text = synth.template(cand, plan.render())
     p = proposals.create(ctx.db, kind, cand["key"], subject, cand["evidence"], text, 0.9, plan.fingerprint(), parent=parent["id"])

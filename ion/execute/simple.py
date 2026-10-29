@@ -167,8 +167,7 @@ class MoveCodeExecutor(Executor):
             fdir, tdir = w / "filtered", w / "target"
 
             def filt():
-                self.g(["filter-repo", *filter_args([D]), "--commit-callback", origin_callback(self.cfg.org, S), "--force"],
-                       cwd=fdir)
+                self.restart_filter(s_url, fdir, [D], S)
 
             def verify_filter():
                 return json.dumps(self.verify_filtered(p, S, sb, [D], fdir), sort_keys=True)
@@ -181,6 +180,8 @@ class MoveCodeExecutor(Executor):
                 return want
 
             def sub():
+                self.g(["reset", "--hard", f"origin/{tb}"], cwd=tdir)
+                self.g(["clean", "-fd"], cwd=tdir)
                 self.g(["checkout", "-q", "-B", branch, f"origin/{tb}"], cwd=tdir)
                 cur = self.g(["rev-parse", "--abbrev-ref", "HEAD"], cwd=fdir).stdout.strip()
                 self.g([*self.identity_args(), "subtree", "add", f"--prefix={dest}", str(fdir), cur, "-m",

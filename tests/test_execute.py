@@ -459,3 +459,83 @@ def test_runner_skips_unapproved_and_shows_plan_when_asked(ctx):
     r = run_execute(ctx, p["id"])
     assert r["skipped"] and "git subtree add" in "\n".join(r["plans"][p["id"]])
     assert not ctx.gh.writes_to("POST", "/pulls")
+
+
+def test_open_pr_recovers_effect_when_after_ledger_row_is_missing(ctx):
+    from ion.execute.base import Executor
+    ex = Executor(ctx)
+    first = ex.open_pr("old-tool", "ion/P-0001", "main", "title", "body")
+    recovered = ex.open_pr("old-tool", "ion/P-0001", "main", "title", "body")
+    assert recovered == first
+    assert len(ctx.gh.writes_to("POST", "/repos/acme/old-tool/pulls")) == 1
+
+
+def crash_after_step(ctx, monkeypatch, key):
+    """Model process death after an effect but before its after-ledger row."""
+    original = ctx.db.ledger_add
+    def interrupted(pid, step, phase, detail):
+        if step == key and phase == "after":
+            raise KeyboardInterrupt("simulated process death")
+        return original(pid, step, phase, detail)
+    monkeypatch.setattr(ctx.db, "ledger_add", interrupted)
+    return original
+
+
+@pytest.mark.parametrize("key", ["create.filter-repo", "create.push-new"])
+def test_split_resumes_effect_without_after_ledger_row(ctx, world, monkeypatch, key):
+    p = prep(ctx, "split", SPLIT)
+    ex = executor_for(ctx, "split")
+    original = crash_after_step(ctx, monkeypatch, key)
+    with pytest.raises(KeyboardInterrupt):
+        ex.apply(p, dry_run=False)
+    monkeypatch.setattr(ctx.db, "ledger_add", original)
+    ex.apply(proposals.get(ctx.db, p["id"]), dry_run=False)
+    assert ctx.db.ledger_done(p["id"], "create.verify")
+    assert proposals.get(ctx.db, p["id"])["state"]["phase"] == "pointer"
+
+
+def test_merge_resumes_subtree_effect_without_after_row(ctx, world, monkeypatch):
+    p = prep(ctx, "merge", MERGE)
+    ex = executor_for(ctx, "merge")
+    original = crash_after_step(ctx, monkeypatch, "open_pr.subtree-add")
+    with pytest.raises(KeyboardInterrupt):
+        ex.apply(p, dry_run=False)
+    monkeypatch.setattr(ctx.db, "ledger_add", original)
+    ex.apply(proposals.get(ctx.db, p["id"]), dry_run=False)
+    assert ctx.db.ledger_done(p["id"], "open_pr.verify-history")
+    assert len(ctx.gh.writes_to("POST", "/repos/acme/alpha-core/pulls")) == 1
+
+
+def test_followup_proposal_is_reused_after_create_effect(ctx):
+    from ion.propose.engine import create_followup
+    p = prep(ctx, "merge", MERGE)
+    subject = {"repo": "alpha-cli", "reason": "merged"}
+    first = create_followup(ctx, p, "archive", subject)
+    second = create_followup(ctx, p, "archive", subject)
+    assert first["id"] == second["id"]
+    assert len(ctx.db.q("select * from proposals where parent=?", (p["id"],))) == 1
+
+
+def test_split_resume_refuses_unexpected_remote_refs(ctx, world, monkeypatch):
+    p = prep(ctx, "split", SPLIT)
+    ex = executor_for(ctx, "split")
+    original = crash_after_step(ctx, monkeypatch, "create.push-new")
+    with pytest.raises(KeyboardInterrupt):
+        ex.apply(p, dry_run=False)
+    monkeypatch.setattr(ctx.db, "ledger_add", original)
+    bare = str(world / "mono-engine.git")
+    sh("git", "--git-dir", bare, "update-ref", "refs/heads/extra", "refs/heads/main")
+    with pytest.raises(SafetyError, match="unexpected refs"):
+        ex.apply(proposals.get(ctx.db, p["id"]), dry_run=False)
+
+
+@pytest.mark.parametrize("key", ["add.filter", "add.subtree-add"])
+def test_move_code_resumes_filter_and_subtree_effects(ctx, world, monkeypatch, key):
+    p = prep(ctx, "move_code", {"source": "mono", "dir": "site", "target": "old-tool", "dest_prefix": "site"})
+    ex = executor_for(ctx, "move_code")
+    original = crash_after_step(ctx, monkeypatch, key)
+    with pytest.raises(KeyboardInterrupt):
+        ex.apply(p, dry_run=False)
+    monkeypatch.setattr(ctx.db, "ledger_add", original)
+    ex.apply(proposals.get(ctx.db, p["id"]), dry_run=False)
+    assert ctx.db.ledger_done(p["id"], "add.verify-import")

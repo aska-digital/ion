@@ -157,6 +157,23 @@ class Executor:
         Path(dest).parent.mkdir(parents=True, exist_ok=True)
         self.g([*self.auth(url), "clone", "--quiet", "--no-local", url, str(dest)])
 
+    def restart_filter(self, url: str, dest, dirs: list[str], source: str) -> None:
+        """A filter step may have rewritten its clone before its ledger row reached disk."""
+        import shutil
+        from pathlib import Path
+        from .provenance import origin_callback
+        dest = Path(dest)
+        # Only executor-owned scratch directories may be replaced.
+        from ..util import home
+        root = Path(self.ctx.work_root or (home() / "work")).resolve()
+        if dest.name != "filtered" or dest.resolve() == root or not dest.resolve().is_relative_to(root):
+            raise SafetyError("filter scratch directory is outside the executor work root")
+        if dest.exists():
+            shutil.rmtree(dest)
+        self.clone(url, dest)
+        self.g(["filter-repo", *filter_args(dirs), "--commit-callback",
+                origin_callback(self.cfg.org, source), "--force"], cwd=dest)
+
     def verify_filtered(self, p: dict, source: str, base: str, dirs: list[str], filtered_dir) -> dict:
         """Exact check of a filter-repo result: tree equality plus commit-map coverage (see provenance.py)."""
         from .provenance import verify_filtered
@@ -190,6 +207,16 @@ class Executor:
         return bool(pr.get("merged"))
 
     def open_pr(self, repo: str, head: str, base: str, title: str, body: str) -> int:
+        from urllib.parse import urlencode
+        query = urlencode({"state": "all", "head": f"{self.cfg.org}:{head}", "base": base})
+        existing = self.gh.rest("GET", f"/repos/{self.cfg.org}/{repo}/pulls?{query}")
+        if not isinstance(existing, list) or len(existing) > 1:
+            raise SafetyError("cannot uniquely determine whether the proposal PR already exists")
+        if existing:
+            pr = existing[0]
+            if pr.get("state") == "open" or pr.get("merged_at"):
+                return int(pr["number"])
+            raise SafetyError("the proposal PR was closed without merging; refusing to duplicate it")
         m = re.search(r"\[(P-\d+)\]\s*$", title)
         proposal = m.group(1) if m else None
         pr = self.ctx.writes.submit(WriteRequest(
