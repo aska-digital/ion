@@ -62,6 +62,12 @@ def verify_filtered(filtered_dir, source_dir, source_ref: str, dirs: list[str]) 
       reachable from the result's HEAD;
     - the result's tree equals the source's tree at `dirs` (one dir: root tree == `<ref>:<dir>`; several: each
       `HEAD:<d>` equals `<ref>:<d>` and the root holds nothing else)."""
+    # Root metadata can govern files under every moved directory. Until rules and
+    # submodule paths can be translated faithfully, refuse rather than drop them.
+    for metadata in (".gitattributes", ".gitmodules"):
+        if _rev(source_dir, f"{source_ref}:{metadata}"):
+            raise RuntimeError(f"cannot safely filter directories while root {metadata} exists; "
+                               "migrate its attributes/submodule metadata explicitly before proposing this move")
     cmap = read_commit_map(Path(filtered_dir) / ".git" / "filter-repo" / "commit-map")
     touching = git(["rev-list", source_ref, "--", *dirs], cwd=source_dir).stdout.split()
     reachable = set(git(["rev-list", "HEAD"], cwd=filtered_dir).stdout.split())

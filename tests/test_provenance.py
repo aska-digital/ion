@@ -126,3 +126,13 @@ def test_move_code_verifies_filter_and_import(ctx, world):
     assert sh(*gd(world, "old-tool"), "rev-parse", f"ion/{pid}:site") == sh(*gd(world, "mono"), "rev-parse", "main:site")
     log = sh(*gd(world, "old-tool"), "log", "--format=%B", f"ion/{pid}")
     assert "Ion-Origin: acme/mono@" in log
+
+
+@pytest.mark.parametrize("metadata", [".gitattributes", ".gitmodules"])
+def test_filtered_move_refuses_dropped_root_metadata(filtered, metadata):
+    src, flt = filtered
+    (src / metadata).write_text("# root metadata\n")
+    sh("git", "add", metadata, cwd=src)
+    sh("git", "commit", "-qm", "add metadata", cwd=src)
+    with pytest.raises(RuntimeError, match="root " + metadata):
+        verify_filtered(flt, src, "HEAD", ["site"])
