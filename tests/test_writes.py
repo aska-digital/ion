@@ -187,3 +187,35 @@ def test_dry_run_reports_the_breaker_without_tripping_state(ctx):
         approve(ctx, new_proposal(ctx, "archive", {"repo": r}))
     r = run_execute(ctx)                                                         # dry run
     assert r["breaker"] and ctx.db.kv_get("last_breaker_trip") is None
+
+
+def test_branch_protection_preserves_live_checks_and_restrictions(ctx, monkeypatch):
+    original = ctx.gh.rest
+    live = {"required_status_checks": {"strict": True, "contexts": ["ci"], "checks": [{"context": "ci", "app_id": 42}]},
+            "restrictions": {"users": [{"login": "maint"}], "teams": [{"slug": "ops"}], "apps": []},
+            "required_pull_request_reviews": {"dismiss_stale_reviews": True, "require_code_owner_reviews": True},
+            "required_linear_history": {"enabled": True}}
+    def rest(method, path, body=None):
+        if method == "GET" and path.endswith("/protection"):
+            return live
+        return original(method, path, body)
+    monkeypatch.setattr(ctx.gh, "rest", rest)
+    ctx.writes.submit(req("put_branch_protection", branch="main", settings={"require_pr": True, "required_approvals": 1}))
+    body = ctx.gh.writes_to("PUT", "/protection")[-1][2]
+    assert body["required_status_checks"] == live["required_status_checks"]
+    assert body["restrictions"] == {"users": ["maint"], "teams": ["ops"], "apps": []}
+    assert body["required_pull_request_reviews"]["require_code_owner_reviews"]
+    assert body["required_linear_history"]
+
+
+def test_branch_protection_read_failure_prevents_put(ctx, monkeypatch):
+    from ion.ghclient import GHError
+    original = ctx.gh.rest
+    def rest(method, path, body=None):
+        if method == "GET" and path.endswith("/protection"):
+            raise GHError("Forbidden", 403)
+        return original(method, path, body)
+    monkeypatch.setattr(ctx.gh, "rest", rest)
+    with pytest.raises(GHError):
+        ctx.writes.submit(req("put_branch_protection", branch="main", settings={"require_pr": True}))
+    assert not ctx.gh.writes_to("PUT", "/protection")

@@ -239,7 +239,15 @@ class Broker:
             return gh.rest("POST", base + "/pulls", p)
         if t == "put_branch_protection":
             from .execute.simple import protection_body
-            return gh.rest("PUT", f"{base}/branches/{p['branch']}/protection", protection_body(p["settings"]))
+            from .ghclient import GHError
+            path = f"{base}/branches/{urllib.parse.quote(p['branch'], safe='')}/protection"
+            try:
+                current = gh.rest("GET", path)
+            except GHError as exc:
+                if exc.status != 404 or current_rule(self.ctx.db, r) is not None:
+                    raise
+                current = {}
+            return gh.rest("PUT", path, protection_body(p["settings"], current))
         if t == "enable_dependabot_alerts":
             return gh.rest("PUT", base + "/vulnerability-alerts")
         if t == "enable_secret_scanning":
