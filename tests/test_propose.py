@@ -275,3 +275,26 @@ def test_llm_call_cap_and_none_backend():
     assert not NoneLLM(load_config(None, {"org": "o"})).enabled
     with pytest.raises(LLMError):
         NoneLLM(load_config(None, {"org": "o"})).complete_json("x")
+
+
+def test_llm_hold_is_not_repeated_without_score_movement(ctx):
+    ctx.cfg["thresholds"]["persist_runs"] = 1
+    ctx.llm = StubLLM(good(recommend="hold"))
+    run_collect(ctx)
+    run_analyze(ctx)
+    run_propose(ctx)
+    count = ctx.llm.calls
+    assert count > 0
+    for _ in range(3):
+        run_propose(ctx)
+    assert ctx.llm.calls == count
+
+
+def test_llm_hold_releases_after_score_delta(ctx):
+    ctx.cfg["thresholds"]["persist_runs"] = 1
+    ctx.llm = StubLLM(good(recommend="hold"))
+    run_collect(ctx); run_analyze(ctx); run_propose(ctx)
+    count = ctx.llm.calls
+    ctx.db.x("update candidates set score=score-0.2 where status='llm-hold'")
+    run_propose(ctx)
+    assert ctx.llm.calls > count

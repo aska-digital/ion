@@ -117,9 +117,16 @@ def run_propose(ctx, dry_run: bool = False) -> dict:
             continue
         if not dry_run:
             db.x("insert into candidates(key,kind,subject,first_gen,last_gen,streak,score,evidence,updated) values(?,?,?,?,?,?,?,?,?)"
-                 " on conflict(key) do update set last_gen=excluded.last_gen, streak=excluded.streak, score=excluded.score,"
+                 " on conflict(key) do update set last_gen=excluded.last_gen, streak=excluded.streak, score=CASE WHEN candidates.status='llm-hold' THEN candidates.score ELSE excluded.score END,"
                  " evidence=excluded.evidence, updated=excluded.updated",
                  (key, c["kind"], json.dumps(c["subject"]), gen, gen, streak, c["score"], json.dumps(c["evidence"], default=str), iso()))
+        if row is not None and row["status"] == "llm-hold":
+            if round(abs(c["score"] - row["score"]), 9) < cfg["thresholds"]["rescore_delta"]:
+                info["state"] = "suppressed (LLM hold)"
+                res["suppressed"].append(key)
+                continue
+            if not dry_run:
+                db.x("update candidates set status='pending', score=? where key=?", (c["score"], key))
         latest = _latest_for_key(db, key)
         if latest is not None and latest["status"] in ACTIVE:
             p = proposals.view(latest)
