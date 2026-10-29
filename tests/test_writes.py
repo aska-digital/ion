@@ -187,3 +187,11 @@ def test_dry_run_reports_the_breaker_without_tripping_state(ctx):
         approve(ctx, new_proposal(ctx, "archive", {"repo": r}))
     r = run_execute(ctx)                                                         # dry run
     assert r["breaker"] and ctx.db.kv_get("last_breaker_trip") is None
+
+
+@pytest.mark.parametrize("total", [1, 2, 3])
+def test_fraction_guard_scales_floor_for_small_orgs(ctx, monkeypatch, total):
+    monkeypatch.setattr(ctx.writes, "_repo_universe", lambda: total)
+    assert "would touch" in ctx.writes.check_blast({f"repo-{n}" for n in range(total)}, 0, [])
+    if total > 1:
+        assert ctx.writes.check_blast({"repo-0"}, 0, []) is None
