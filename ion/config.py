@@ -14,6 +14,8 @@ from .util import home
 DEFAULTS: dict = {
     "org": None,
     "paused": False,
+    "preflight": {"expect_networkx": False, "filter_repo_version": None},
+    "disabled_executors": [],
     "maintainers": [],
     "plan": "free",
     "tracker_repo": "ion-tracker",  # keep this repo PRIVATE: proposal bodies name private repos
@@ -63,6 +65,10 @@ SCHEMA = {
     "type": "object",
     "properties": {
         "org": {"type": ["string", "null"]}, "paused": {"type": "boolean"}, "maintainers": _STR_LIST,
+        "preflight": {"type": "object", "additionalProperties": False, "properties": {
+            "expect_networkx": {"type": "boolean"}, "filter_repo_version": {"type": ["string", "null"], "minLength": 1}}},
+        "disabled_executors": {"type": "array", "uniqueItems": True, "items": {"enum": [
+            "merge", "split", "archive", "rename", "move_code", "policy_fix", "health_fix", "new_repo", "autofix"]}},
         "approval_sources": {"type": "array", "items": {"enum": ["github_label", "divan_bus", "dashboard"]}},
         "notifiers": {"type": "array", "items": {"type": "object", "required": ["type"],
                       "properties": {"type": {"enum": ["stdout", "file", "divan_bus", "github_issue", "webhook"]}}}},
