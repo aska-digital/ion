@@ -149,3 +149,5 @@ Webhooks or a live server (polling once a day is enough); cross-org work; auto-m
 | 12 | Org-wide grep and autofixers over mirrors | `fleet.py`, `execute/autofix.py` |
 
 The ideas come from published designs of other projects; no code was copied. Credits are in the README.
+
+Code moves reject unsafe source and destination directory paths before execution.
