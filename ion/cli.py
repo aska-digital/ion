@@ -34,6 +34,8 @@ def build_parser() -> argparse.ArgumentParser:
     r = sub.add_parser("run", help="full pipeline (what the scheduler calls)")
     r.add_argument("--apply", action="store_true", help="let executors act (default: dry-run)")
     r.add_argument("--no-mirror", action="store_true")
+    prune = sub.add_parser("prune-work", help="preview retained terminal proposal clones to remove")
+    prune.add_argument("--apply", action="store_true", help="delete terminal work directories (default: preview)")
     sub.add_parser("status")
     x = sub.add_parser("explain")
     x.add_argument("proposal")
@@ -73,6 +75,16 @@ def make_ctx(args, no_mirror=False) -> Context:
 
 def out(s: str = "") -> None:
     print(s)
+
+
+def cmd_prune_work(ctx, args):
+    from .cleanup import prune_work
+    result = prune_work(ctx, apply=args.apply)
+    for pid in result["candidates"]:
+        out(f"{'removed' if pid in result['removed'] else 'would remove'}: {pid}")
+    for error in result["errors"]:
+        out(f"error: {error}")
+    return 1 if result["errors"] else 0
 
 
 def cmd_collect(ctx, args):
@@ -352,7 +364,7 @@ def main(argv=None) -> int:
     try:
         if args.cmd == "doctor":
             return cmd_doctor(ctx, args)
-        fn = {"collect": cmd_collect, "analyze": cmd_analyze, "propose": cmd_propose, "sync-approvals": cmd_sync,
+        fn = {"prune-work": cmd_prune_work, "collect": cmd_collect, "analyze": cmd_analyze, "propose": cmd_propose, "sync-approvals": cmd_sync,
               "execute": cmd_execute, "report": cmd_report, "run": cmd_run, "status": cmd_status, "explain": cmd_explain,
               "grep": cmd_grep, "autofix": cmd_autofix, "plan-config": cmd_plan_config, "dashboard": cmd_dashboard}[args.cmd]
         r = fn(ctx, args)
