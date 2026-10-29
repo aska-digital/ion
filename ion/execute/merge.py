@@ -5,7 +5,7 @@ import json
 
 from .. import proposals
 from ..collect.mirror import mirror_path as _mp
-from ..util import Refused, SafetyError, safe_write
+from ..util import Refused, SafetyError, safe_write, readme_path, readme_text
 from .. import changesets
 from ..writes import WriteRequest
 from .base import Executor, Plan, Step, Waiting
@@ -104,10 +104,11 @@ class MergeExecutor(Executor):
 
         def edit():
             self.g(["checkout", "-q", "-B", branch, f"origin/{base}"], cwd=pdir)
-            safe_write(pdir, "README.md",
+            readme = readme_path(pdir)
+            safe_write(pdir, readme, readme_text(readme,
                 f"# {A}\n\nThis repository has moved. Its code and history now live in "
-                f"[{self.cfg.org}/{s['target']}](https://github.com/{self.cfg.org}/{s['target']}) under `{s['prefix']}/`.\n")
-            self.g(["add", "README.md"], cwd=pdir)
+                f"[{self.cfg.org}/{s['target']}](https://github.com/{self.cfg.org}/{s['target']}) under `{s['prefix']}/`.\n"))
+            self.g(["add", readme], cwd=pdir)
             self.commit(pdir, f"Point README at {s['target']} ({pid})")
 
         def pr():
