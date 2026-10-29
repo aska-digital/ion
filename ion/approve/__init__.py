@@ -9,7 +9,7 @@ from ..util import iso
 from . import bus, core, labels
 
 log = logging.getLogger("ion")
-LIVE = ("awaiting-approval", "approved", "held")
+LIVE = ("awaiting-approval", "approved", "held", "executing")
 
 
 def sync_approvals(ctx) -> dict:
@@ -28,7 +28,7 @@ def sync_approvals(ctx) -> dict:
             res["ignored"] += dashboard.sync(ctx)["ignored"]
         except Exception as e:  # noqa: BLE001
             res["errors"].append(f"dashboard: {str(e)[:200]}")
-    for row in db.q("select id from proposals where status in ('awaiting-approval','approved','held')"):
+    for row in db.q("select id from proposals where status in ('awaiting-approval','approved','held','executing')"):
         p = proposals.get(db, row["id"])
         if "github_label" in sources and p.get("issue_number"):
             try:
@@ -42,10 +42,12 @@ def sync_approvals(ctx) -> dict:
 
 def _apply_state(ctx, p: dict, res: dict) -> None:
     db = ctx.db
-    ev = core.evaluate(ctx, p)
+    ev = core.evaluate(ctx, p, ignore_ttl=bool(p["state"].get("started")))
     old = p["status"]
     new = {"approved": "approved", "awaiting": "awaiting-approval", "held": "held", "rejected": "rejected",
            "expired": "awaiting-approval"}[ev["state"]]
+    if old == "executing" and new == "approved":
+        new = "executing"
     st = p["state"]
     if ev["state"] == "expired":
         st["notes"] = st.get("notes", []) + [f"{iso()}: approval expired; approval is needed again"]

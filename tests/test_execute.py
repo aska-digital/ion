@@ -459,3 +459,23 @@ def test_runner_skips_unapproved_and_shows_plan_when_asked(ctx):
     r = run_execute(ctx, p["id"])
     assert r["skipped"] and "git subtree add" in "\n".join(r["plans"][p["id"]])
     assert not ctx.gh.writes_to("POST", "/pulls")
+
+
+def test_held_policy_fix_cannot_bypass_gate(ctx):
+    ctx.cfg["auto_apply"] = ["dependabot_alerts"]
+    p = prep(ctx, "policy_fix", {"class": "dependabot_alerts", "repo": "old-tool"}, approved=False)
+    ctx.db.x("update proposals set status='held' where id=?", (p["id"],))
+    with pytest.raises(Refused, match="held"):
+        executor_for(ctx, "policy_fix").apply(proposals.get(ctx.db, p["id"]), dry_run=False)
+    assert not ctx.gh.writes_to("PUT", "/repos/acme/old-tool/vulnerability-alerts")
+
+
+def test_executing_proposal_syncs_late_reject(ctx):
+    from ion.approve import sync_approvals
+    p = prep(ctx, "merge", MERGE)
+    executor_for(ctx, "merge").apply(p, dry_run=False)
+    current = proposals.get(ctx.db, p["id"])
+    assert current["status"] == "executing"
+    ctx.gh.add_label_event(current["issue_number"], "ion:rejected", "maint")
+    sync_approvals(ctx)
+    assert proposals.get(ctx.db, p["id"])["status"] == "rejected"
