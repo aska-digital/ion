@@ -149,3 +149,5 @@ Webhooks or a live server (polling once a day is enough); cross-org work; auto-m
 | 12 | Org-wide grep and autofixers over mirrors | `fleet.py`, `execute/autofix.py` |
 
 The ideas come from published designs of other projects; no code was copied. Credits are in the README.
+
+Collection persists each accepted page before advancing its per-org cursor. Budget stops and error pages leave the pass partial; subsequent invocations resume its run id and cursor. A completed pass clears the checkpoint and becomes the analysis generation. Transient GraphQL failures receive up to three bounded retries.
