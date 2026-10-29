@@ -35,7 +35,7 @@ def gather_candidates(ctx, analysis: dict, snaps: dict[str, dict]) -> list[dict]
         apart = boundaries.separation(sa, sb, cfg)
         if apart:
             subject["cross_scope"] = apart
-        out.append({"key": f"merge:{src}>{tgt}", "kind": "merge", "subject": subject, "score": pair["score"], "evidence": ev,
+        out.append({"key": "merge:" + "|".join(sorted((src, tgt))), "kind": "merge", "subject": subject, "score": pair["score"], "evidence": ev,
                     "persist": True,
                     "blocked": apart if cfg["boundaries"]["block_cross_scope_merge"] else None})
     for r in analysis["cohesion"]:
@@ -79,7 +79,16 @@ def plan_for(ctx, kind: str, subject: dict, pid: str = "P-XXXX", phase: str | No
 
 
 def _latest_for_key(db, key: str):
-    return db.one("select * from proposals where key=? order by num desc limit 1", (key,))
+    direct = db.one("select * from proposals where key=? order by num desc limit 1", (key,))
+    if direct is not None or not key.startswith("merge:") or "|" not in key:
+        return direct
+    pair = sorted(key.removeprefix("merge:").split("|"))
+    # Existing installations used directional keys. Reuse their newest proposal.
+    for row in db.q("select * from proposals where kind='merge' order by num desc"):
+        subject = proposals.view(row)["subject"]
+        if sorted((subject.get("source", ""), subject.get("target", ""))) == pair:
+            return row
+    return None
 
 
 def refresh_issue(ctx, p: dict, approval: dict | None = None) -> None:

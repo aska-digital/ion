@@ -275,3 +275,23 @@ def test_llm_call_cap_and_none_backend():
     assert not NoneLLM(load_config(None, {"org": "o"})).enabled
     with pytest.raises(LLMError):
         NoneLLM(load_config(None, {"org": "o"})).complete_json("x")
+
+
+def test_merge_pair_key_survives_direction_flip(ctx, monkeypatch):
+    a = analysed(ctx)
+    from ion.collect.snapshot import latest_snapshots
+    snaps, _ = latest_snapshots(ctx.db)
+    before = {c["key"] for c in gather_candidates(ctx, a, snaps) if c["kind"] == "merge"}
+    original = scoring.merge_direction
+    monkeypatch.setattr(scoring, "merge_direction", lambda x, y: tuple(reversed(original(x, y))))
+    after = {c["key"] for c in gather_candidates(ctx, a, snaps) if c["kind"] == "merge"}
+    assert before and before == after
+
+
+def test_canonical_merge_key_reuses_legacy_directional_proposal(ctx):
+    from helpers import MERGE, new_proposal
+    from ion.propose.engine import _latest_for_key
+    p = new_proposal(ctx, "merge", MERGE)
+    ctx.db.x("update proposals set key=? where id=?", (f"merge:{MERGE['source']}>{MERGE['target']}", p["id"]))
+    key = "merge:" + "|".join(sorted((MERGE["source"], MERGE["target"])))
+    assert _latest_for_key(ctx.db, key)["id"] == p["id"]
