@@ -46,9 +46,17 @@ class Plan:
 
     def fingerprint(self) -> str:
         """The plan hash (sha256, hex): what a maintainer's approval is bound to. It covers the kind, the subject and
-        every step with its exact command, so any change of what would run changes the hash."""
+        the initial phase steps and commands. Proposal ids in step text are canonicalized to P-XXXX.
+        Later phase commands are not part of this hash; their subject remains bound by the approval."""
         import hashlib
-        doc = {"kind": self.kind, "subject": self.subject, "steps": [(s.name, s.desc, s.cmd) for s in self.steps]}
+        def canonical(value):
+            if isinstance(value, str):
+                return value.replace(self.proposal, "P-XXXX") if self.proposal else value
+            if isinstance(value, list):
+                return [canonical(v) for v in value]
+            return value
+        doc = {"kind": self.kind, "subject": self.subject,
+               "steps": [(s.name, canonical(s.desc), canonical(s.cmd)) for s in self.steps]}
         return hashlib.sha256(json.dumps(doc, sort_keys=True, default=str).encode()).hexdigest()
 
 

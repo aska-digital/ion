@@ -49,7 +49,7 @@ Python 3.12+, managed with `uv`. Package `ion/`, CLI `ion`. State lives in SQLit
 - Kinds: `merge`, `split`, `archive`, `rename`, `move_code`, `policy_fix`, `health_fix`, `new_repo`, and *(v2)* `autofix` (a fleet change over many repos).
 - `scoring.py`: scores, hysteresis (a candidate must persist for K runs, default 2) and cooldown (a rejected proposal is suppressed for `cooldown_days` unless its score rises by `rescore_delta`).
 - `synth.py`: one LLM call per new candidate returns JSON that is validated against a schema; failures fall back to a template. The LLM can lower confidence or recommend hold or drop. It cannot invent a proposal. The migration plan shown to maintainers always comes from the executor.
-- Every proposal gets a **plan hash** (`plan-sha256`): SHA-256 over its kind, subject and every step with its exact command. *(v2)*
+- Every proposal gets a **plan hash** (`plan-sha256`): SHA-256 over its kind, subject and initial-phase steps with their commands, canonicalizing the proposal id to `P-XXXX`. Later phase commands are displayed as execution advances but are not included in this hash. *(v2)*
 
 ### 2.4 Approve (`ion/approve/`)
 - Maintainers are listed in config. A repo's `.github/ion.yml` may narrow the list for that repo, never widen it: its `maintainers` is intersected with the org list (case-insensitive), so a login the org list lacks never counts, and a repo list that names no org maintainer leaves that repo with no approvers. An actor must be a maintainer of every repo the proposal touches.
