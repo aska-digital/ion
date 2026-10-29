@@ -149,3 +149,5 @@ Webhooks or a live server (polling once a day is enough); cross-org work; auto-m
 | 12 | Org-wide grep and autofixers over mirrors | `fleet.py`, `execute/autofix.py` |
 
 The ideas come from published designs of other projects; no code was copied. Credits are in the README.
+
+The REST transport requires a broker-only capability for non-GET methods. The fake enforces the same check on every test call. GraphQL mutations are refused; pagination explicitly uses GET. This is an application invariant, not an operating-system sandbox against arbitrary Python code invoking its own subprocess.

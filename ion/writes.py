@@ -222,34 +222,37 @@ class Broker:
         return result
 
     def _rest(self, req: WriteRequest):
+        from .ghclient import _WRITE_CAPABILITY
         gh, org, r, p = self.ctx.gh, self.ctx.cfg.org, req.repo, req.payload
+        def write(method, path, body=None):
+            return gh.rest(method, path, body, _capability=_WRITE_CAPABILITY)
         base = f"/repos/{org}/{r}"
         t = req.type
         if t == "create_label":
-            return gh.rest("POST", base + "/labels", p)
+            return write("POST", base + "/labels", p)
         if t == "open_issue":
-            return gh.rest("POST", base + "/issues", p)
+            return write("POST", base + "/issues", p)
         if t == "edit_issue_body":
-            return gh.rest("PATCH", f"{base}/issues/{p['number']}", {k: v for k, v in p.items() if k != "number"})
+            return write("PATCH", f"{base}/issues/{p['number']}", {k: v for k, v in p.items() if k != "number"})
         if t == "add_label":
-            return gh.rest("POST", f"{base}/issues/{p['number']}/labels", {"labels": p["labels"]})
+            return write("POST", f"{base}/issues/{p['number']}/labels", {"labels": p["labels"]})
         if t == "remove_label":
-            return gh.rest("DELETE", f"{base}/issues/{p['number']}/labels/{urllib.parse.quote(p['label'], safe=':')}")
+            return write("DELETE", f"{base}/issues/{p['number']}/labels/{urllib.parse.quote(p['label'], safe=':')}")
         if t == "open_pr":
-            return gh.rest("POST", base + "/pulls", p)
+            return write("POST", base + "/pulls", p)
         if t == "put_branch_protection":
             from .execute.simple import protection_body
-            return gh.rest("PUT", f"{base}/branches/{p['branch']}/protection", protection_body(p["settings"]))
+            return write("PUT", f"{base}/branches/{p['branch']}/protection", protection_body(p["settings"]))
         if t == "enable_dependabot_alerts":
-            return gh.rest("PUT", base + "/vulnerability-alerts")
+            return write("PUT", base + "/vulnerability-alerts")
         if t == "enable_secret_scanning":
-            return gh.rest("PATCH", base, {"security_and_analysis": {"secret_scanning": {"status": "enabled"}}})
+            return write("PATCH", base, {"security_and_analysis": {"secret_scanning": {"status": "enabled"}}})
         if t == "archive_repo":
-            return gh.rest("PATCH", base, {"archived": True})
+            return write("PATCH", base, {"archived": True})
         if t == "create_repo":
-            return gh.rest("POST", f"/orgs/{org}/repos", p)
+            return write("POST", f"/orgs/{org}/repos", p)
         if t == "rename_repo":
-            return gh.rest("PATCH", base, {"name": p["new_name"]})
+            return write("PATCH", base, {"name": p["new_name"]})
         raise WriteRejected(f"no transport for {t}")
 
     # convenience ----------------------------------------------------------------------------

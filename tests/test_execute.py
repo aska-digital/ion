@@ -209,10 +209,10 @@ def test_merge_resumes_after_failure_without_repeating_steps(ctx, world, monkeyp
     p = prep(ctx, "merge", MERGE)
     ex = executor_for(ctx, "merge")
     real = ctx.gh.rest
-    def flaky(method, path, body=None):
+    def flaky(method, path, body=None, **kw):
         if method == "POST" and path.endswith("/pulls"):
             raise RuntimeError("api down")
-        return real(method, path, body)
+        return real(method, path, body, **kw)
     monkeypatch.setattr(ctx.gh, "rest", flaky)
     with pytest.raises(RuntimeError):
         ex.apply(p, dry_run=False)
