@@ -151,7 +151,7 @@ class FakeGH:
                 merged = (parts[2], int(parts[4])) in self.merged
                 return {"merged": merged, "state": "closed" if merged else "open"}
             if len(parts) == 5 and parts[3] == "issues":
-                return {"body": self.issues[int(parts[4])]["body"], "number": int(parts[4])}
+                return {**self.issues[int(parts[4])], "number": int(parts[4])}
             if path == "/user":
                 return {"login": self.bot_login}
             return {}

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 from .util import Waiting, iso
 
@@ -97,7 +98,12 @@ def upsert_issue(ctx, p: dict, body: str) -> int | None:
     ensure_labels(ctx)
     title = f"[{p['id']}] {p['text'].get('title') or p['title']}"
     if p.get("issue_number"):
-        ctx.writes.tracker("edit_issue_body", number=int(p["issue_number"]), title=title, body=body)
+        n = int(p["issue_number"])
+        live = ctx.gh.rest("GET", f"/repos/{ctx.cfg.org}/{ctx.cfg['tracker_repo']}/issues/{n}") or {}
+        def stable(text):
+            return re.sub(r"^<sub>Last updated [^ ]+ by ion\.", "<sub>Last updated by ion.", text or "", flags=re.M)
+        if stable(live.get("body")) != stable(body) or live.get("title") != title:
+            ctx.writes.tracker("edit_issue_body", number=n, title=title, body=body)
         _sync_needs_decision(ctx, p, int(p["issue_number"]))
         return p["issue_number"]
     labels = ["ion:proposal", f"kind:{p['kind']}", f"state:{p['status']}"]
