@@ -52,7 +52,7 @@ DEFAULTS: dict = {
     "git_identity": {"name": "ion", "email": "ion@askaconsult.com"},
     "ai_attribution": False,
     "license_template": None,
-    "report": {"org_health_issue": False},
+    "report": {"org_health_issue": False, "stale_after_hours": 48},
     "writes": {"caps": {}},
     "guards": {"enabled": True, "max_repo_fraction": 0.25, "min_repos": 4, "max_archives": 2, "max_writes": 150,
                "forbid_protection_lowering": True},
@@ -62,6 +62,7 @@ _STR_LIST = {"type": "array", "items": {"type": "string"}}
 SCHEMA = {
     "type": "object",
     "properties": {
+        "report": {"type": "object", "properties": {"org_health_issue": {"type": "boolean"}, "stale_after_hours": {"type": "number", "exclusiveMinimum": 0}}},
         "org": {"type": ["string", "null"]}, "paused": {"type": "boolean"}, "maintainers": _STR_LIST,
         "approval_sources": {"type": "array", "items": {"enum": ["github_label", "divan_bus", "dashboard"]}},
         "notifiers": {"type": "array", "items": {"type": "object", "required": ["type"],

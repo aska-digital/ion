@@ -233,3 +233,9 @@ Copyright 2026 ASKA Business Solutions and the Ion contributors. Apache-2.0, see
 - **Lattices.** In a crystal, ions sit on the points of a lattice, and the pull between them holds the structure together. ion's job is the same: keep the org's structure sound. It watches how repos relate, proposes merges and splits, and holds policy steady. It also fits Exo's lattice theme: the incentre lattice, the exosphere, x0.
 - **Charge, applied with care.** An ion carries charge, and charge only does work along a path. ion acts only through approved paths: the `ion:approved` label or a signed bus message. It makes no silent changes.
 - **The amp team.** Current is ions in motion, measured in amperes. ion is reviewed, and likely powered, by the amp team, whose specialty is reviewing.
+
+### Pipeline run records
+
+`ion run` stores one `pipeline_runs` row and a `pipeline_steps` row for collect, analyze, propose, approvals and execute. Each stage records elapsed seconds, observed GraphQL points, REST requests, attempted broker writes and errors. A missing API counter is SQL `NULL`, not zero; a failed paginated request has an unknown request count. Partial collection and failed stages never advance the last successful pipeline timestamp. An interrupted process leaves its run unfinished.
+
+The dashboard and digest show that timestamp and warn after `report.stale_after_hours` (default 48). This is checked when Ion next reports; it cannot alert while the scheduler itself is stopped. Success describes those five stages, including a dry-run execute; it does not prove that changes were applied or that notifier delivery succeeded. Digests send when the stale state changes, without a notification on every unchanged healthy run.
