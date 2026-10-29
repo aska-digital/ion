@@ -110,6 +110,8 @@ class FakeGH:
 
     # --- graphql
     def graphql(self, query, variables=None):
+        from ion.ghclient import guard_query
+        guard_query(query, variables)
         self.graphql_calls += 1
         if "userContentEdits" in query:
             nodes = list(self.edits.get(int(variables["n"]), []))
@@ -137,7 +139,9 @@ class FakeGH:
         n = int(path.split("/issues/")[1].split("/")[0])
         return list(self.timeline.get(n, []))
 
-    def rest(self, method, path, body=None):
+    def rest(self, method, path, body=None, *, _capability=None):
+        from ion.ghclient import guard_rest
+        guard_rest(method, _capability)
         if method != "GET":
             self.writes.append((method, path, body))
         parts = path.strip("/").split("/")

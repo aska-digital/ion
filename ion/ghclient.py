@@ -5,9 +5,29 @@ Tests substitute a fake with the same interface.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 
-from .util import redact
+from .util import redact, SafetyError
+
+_WRITE_CAPABILITY = object()
+
+
+def guard_rest(method: str, capability=None) -> None:
+    if method.upper() != "GET" and capability is not _WRITE_CAPABILITY:
+        raise SafetyError("mutating GitHub REST calls must go through the write broker")
+
+
+def guard_query(query: str, variables: dict | None = None) -> None:
+    # gh treats field names as transport keys. A variable named query would
+    # overwrite the document checked below when serialized as another -f query=.
+    if "query" in (variables or {}):
+        raise SafetyError("reserved GraphQL transport field: query")
+    # Strip comments and string values before recognizing operation keywords.
+    tokens = re.sub(r'"""[\s\S]*?"""|"(?:\\.|[^"\\])*"|#[^\n]*', " ", query)
+    if re.search(r"\bmutation\b", tokens, re.I):
+        raise SafetyError("GraphQL mutations must go through a typed write request")
+
 
 
 class GHError(RuntimeError):
@@ -27,6 +47,7 @@ class GH:
 
     def graphql(self, query: str, variables: dict | None = None) -> dict:
         """Return the full response body: {data, errors?}. Partial errors are returned, not raised."""
+        guard_query(query, variables)
         argv = ["gh", "api", "graphql", "-f", f"query={query}"]
         for k, v in (variables or {}).items():
             if v is None:
@@ -41,7 +62,8 @@ class GH:
             raise GHError(redact(err.strip() or out.strip())[:500])
         return body
 
-    def rest(self, method: str, path: str, body: dict | None = None):
+    def rest(self, method: str, path: str, body: dict | None = None, *, _capability=None):
+        guard_rest(method, _capability)
         argv = ["gh", "api", "-X", method, path, "-H", "Accept: application/vnd.github+json"]
         stdin = None
         if body is not None:
@@ -58,7 +80,7 @@ class GH:
         return json.loads(out) if out.strip() else None
 
     def paginate(self, path: str):
-        argv = ["gh", "api", "--paginate", "--slurp", path, "-H", "Accept: application/vnd.github+json"]
+        argv = ["gh", "api", "-X", "GET", "--paginate", "--slurp", path, "-H", "Accept: application/vnd.github+json"]
         rc, out, err = self._runner(argv, None)
         if rc != 0:
             raise GHError(redact(err.strip() or out.strip())[:500])
