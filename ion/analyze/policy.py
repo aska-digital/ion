@@ -75,6 +75,10 @@ def check(snap: dict, files: set[str] | None, cfg, override: dict | None = None)
             add("branch_protection", "skipped", "fork")
         elif private and free:
             add("branch_protection", "blocked_by_plan", "private-repo branch protection needs a paid plan")
+        elif snap.get("protection") and (len(snap["protection"]) != 1 or
+                snap["protection"][0].get("pattern") != snap.get("default_branch")):
+            add("branch_protection", "unknown", "branch rule selection is not resolved: Ion only evaluates a single exact-name rule; "
+                "GitHub applies one classic rule by precedence, not a union (repository rulesets are separate)")
         else:
             rule, branch = _rule_for(snap), snap.get("default_branch")
             if rule is None:
