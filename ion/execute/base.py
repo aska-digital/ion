@@ -57,7 +57,7 @@ def check_gate(ctx, p: dict) -> str:
     cfg = ctx.cfg
     if ctx.cfg.is_paused():
         raise Refused("kill switch is on (PAUSED file or paused: true)")
-    if p["status"] in ("rejected", "dropped", "done"):
+    if p["status"] in ("rejected", "dropped", "done", "held"):
         raise Refused(f"proposal is {p['status']}")
     if p["kind"] in ("policy_fix", "health_fix"):
         from ..analyze import policy
