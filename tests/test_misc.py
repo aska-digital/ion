@@ -230,3 +230,8 @@ def test_legacy_mimar_config_is_found_with_migration_note(tmp_path, monkeypatch,
     (tmp_path / ".mimar" / "mimar.yml").write_text("org: o\n")
     assert find_config_file() == tmp_path / ".mimar" / "mimar.yml"
     assert "deprecated" in capsys.readouterr().err
+
+
+def test_automatic_archive_cannot_be_enabled():
+    with pytest.raises(ConfigError):
+        load_config(None, {"org": "o", "archive_requires_second_approval": False})

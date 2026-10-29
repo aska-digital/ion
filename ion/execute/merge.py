@@ -139,16 +139,13 @@ class MergeExecutor(Executor):
         A = s["source"]
 
         def go():
-            if self.cfg["archive_requires_second_approval"]:
-                from ..propose.engine import create_followup
-                np_ = create_followup(self.ctx, p, "archive", {"repo": A, "reason": f"merged into {s['target']} ({p['id']})"})
-                return f"created {np_['id']}, awaiting its own approval"
-            self.ctx.writes.submit(WriteRequest("archive_repo", A))
-            return "archived"
+            from ..propose.engine import create_followup
+            np_ = create_followup(self.ctx, p, "archive", {"repo": A, "reason": f"merged into {s['target']} ({p['id']})"})
+            return f"created {np_['id']}, awaiting its own approval"
         return Plan(p["id"], "merge", "archive", [Step(
             "ordering", "the pointer PR must have landed before the source is archived", None,
             lambda: changesets.require(self.ctx, self.fresh(p["id"]), "archive"), mutates=False), Step(
-            "archive-source", f"archive {A}" + (" via a separate approved proposal" if self.cfg["archive_requires_second_approval"] else ""),
+            "archive-source", f"archive {A} via a separate approved proposal",
             None, go)])
 
     def verify(self, p: dict) -> bool:

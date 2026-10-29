@@ -98,7 +98,7 @@ SCHEMA = {
         "thresholds": {"type": "object", "additionalProperties": {"type": "number"}},
         "approval_ttl_days": {"type": "integer", "minimum": 1},
         "quorum": {"type": "integer", "minimum": 1},
-        "archive_requires_second_approval": {"type": "boolean"},
+        "archive_requires_second_approval": {"enum": [True]},
         "exclude": _STR_LIST,
         "git_identity": {"type": "object", "required": ["name", "email"]},
     },

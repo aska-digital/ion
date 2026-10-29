@@ -146,7 +146,7 @@ ion dashboard [--print]
 - **Nothing irreversible.** No deletes of repos, branches or history. Archive instead of delete. No force push, ever: a guard rejects `--force`, `-f`, `--force-with-lease`, `+refspec`, `:ref` deletes and branch deletion in any git call the executors make.
 - **History kept and verified exactly.** Merge uses `git subtree add` without `--squash` and checks that the target's `HEAD:<prefix>` tree equals the source tip's tree and that the tip is an ancestor of the result. Split and move use `git filter-repo` on a fresh clone and check the commit map (every source commit touching the moved paths has a counterpart) and tree equality before anything is removed from the source. Counting commits is not a check. Rewritten commits carry `Ion-Origin: <org>/<repo>@<sha>`; the merge commit carries `Ion-Proposal` and `Ion-Origin`.
 - **Ordered changesets.** A dependent step (the pointer PR, the removal PR, the archive) refuses to run until the PR or step before it has landed.
-- **Archive is a separate approval** after a merge (`archive_requires_second_approval`, default true).
+- **Archive is a separate approval** after a merge (`archive_requires_second_approval` must be true).
 - **Ledger.** Every step writes a `before` and an `after` row, so a failed run resumes without repeating finished steps (`ion explain P-0007` shows it).
 - **Low noise.** Issues are edited in place. Ion never comments on other repos and opens PRs only for real changes. A maintainer merges them; Ion never merges its own PRs.
 - **Gentle on the API.** Metadata is GraphQL with a points budget per run. Contents come from local mirrors.
