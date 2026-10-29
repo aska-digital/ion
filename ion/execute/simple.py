@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 
 from .. import proposals
-from ..util import SafetyError, safe_write
+from ..util import SafetyError, safe_write, readme_path, readme_text
 from .. import changesets
 from ..writes import WriteRequest
 from .base import Executor, Plan, Step, filter_args
@@ -128,8 +128,9 @@ class HealthFixExecutor(Executor):
 
         def edit():
             self.g(["checkout", "-q", "-B", branch, f"origin/{base}"], cwd=w)
-            safe_write(w, "README.md", README_SKELETON.format(name=repo, description=snaps_desc))
-            self.g(["add", "README.md"], cwd=w)
+            readme = readme_path(w)
+            safe_write(w, readme, readme_text(readme, README_SKELETON.format(name=repo, description=snaps_desc)))
+            self.g(["add", readme], cwd=w)
             self.commit(w, f"Add README skeleton ({pid})")
 
         def pr():

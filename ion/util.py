@@ -140,3 +140,27 @@ def git(argv: list[str], cwd: str | Path | None = None, **kw) -> subprocess.Comp
     full = ["git", *argv]
     guard_git(full)
     return run(full, cwd=cwd, env=git_env(kw.pop("env", None)), **kw)
+
+
+def readme_path(root: str | Path) -> str:
+    """Choose an existing root README before creating a new Markdown file."""
+    candidates = {p.name.lower(): p.name for p in Path(root).iterdir()
+                  if p.name.lower() == "readme" or p.name.lower().startswith("readme.")}
+    for name in ("readme.md", "readme.rst", "readme.markdown", "readme.txt", "readme"):
+        if name in candidates:
+            return candidates[name]
+    return next((candidates[k] for k in sorted(candidates)), "README.md")
+
+
+def readme_text(path: str, markdown: str) -> str:
+    """Use plain reStructuredText headings and links for an existing rst README."""
+    if not path.lower().endswith(".rst"):
+        return markdown
+    lines = []
+    for line in markdown.splitlines():
+        if line.startswith("# ") or line.startswith("## "):
+            heading = line.lstrip("# ")
+            lines += [heading, "=" * len(heading)]
+        else:
+            lines.append(re.sub(r"\[([^]]+)\]\(([^)]+)\)", r"\1 (\2)", line))
+    return "\n".join(lines) + "\n"

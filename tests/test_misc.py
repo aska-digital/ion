@@ -230,3 +230,12 @@ def test_legacy_mimar_config_is_found_with_migration_note(tmp_path, monkeypatch,
     (tmp_path / ".mimar" / "mimar.yml").write_text("org: o\n")
     assert find_config_file() == tmp_path / ".mimar" / "mimar.yml"
     assert "deprecated" in capsys.readouterr().err
+
+
+def test_existing_rst_readme_is_selected_and_rendered(tmp_path):
+    from ion.util import readme_path, readme_text
+    (tmp_path / "ReadMe.rst").write_text("old")
+    assert readme_path(tmp_path) == "ReadMe.rst"
+    assert readme_text("ReadMe.rst", "# Title\n\n[Target](https://example.com)\n") == "Title\n=====\n\nTarget (https://example.com)\n"
+    (tmp_path / "ReadMe.rst").unlink()
+    assert readme_path(tmp_path) == "README.md"
