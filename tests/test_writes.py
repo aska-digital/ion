@@ -208,3 +208,22 @@ def test_runtime_transport_refuses_graphql_mutations(ctx, query):
     for client in (GH(runner=lambda *a: pytest.fail("transport invoked")), ctx.gh):
         with pytest.raises(SafetyError, match="GraphQL mutations"):
             client.graphql(query)
+
+
+def test_graphql_variable_cannot_replace_the_validated_transport_document(ctx):
+    from ion.ghclient import GH
+    from ion.util import SafetyError
+    calls = []
+    def transport(argv, stdin):
+        calls.append((argv, stdin))
+        return 0, '{"data": {}}', ""
+    query = "query { viewer { login } }"
+    injected = {"query": "mutation { deleteRepository(input: {repositoryId: \"example\"}) { clientMutationId } }"}
+    for client in (GH(runner=transport), ctx.gh):
+        with pytest.raises(SafetyError, match="reserved GraphQL transport field"):
+            client.graphql(query, injected)
+    assert calls == []
+    # Normal variables still reach the transport with exactly one query field.
+    GH(runner=transport).graphql("query($name: String!) { repository(name: $name) { id } }", {"name": "safe"})
+    assert len(calls) == 1
+    assert len([arg for arg in calls[0][0] if arg.startswith("query=")]) == 1

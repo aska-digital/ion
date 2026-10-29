@@ -151,3 +151,5 @@ Webhooks or a live server (polling once a day is enough); cross-org work; auto-m
 The ideas come from published designs of other projects; no code was copied. Credits are in the README.
 
 The REST transport requires a broker-only capability for non-GET methods. The fake enforces the same check on every test call. GraphQL mutations are refused; pagination explicitly uses GET. This is an application invariant, not an operating-system sandbox against arbitrary Python code invoking its own subprocess.
+
+GraphQL variables cannot replace the transport query document: the reserved query field is rejected before any API call. When integrating the App backend, its public REST and GraphQL methods must adopt the same capability and query guards before the combined change is ready.

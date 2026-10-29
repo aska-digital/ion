@@ -18,7 +18,11 @@ def guard_rest(method: str, capability=None) -> None:
         raise SafetyError("mutating GitHub REST calls must go through the write broker")
 
 
-def guard_query(query: str) -> None:
+def guard_query(query: str, variables: dict | None = None) -> None:
+    # gh treats field names as transport keys. A variable named query would
+    # overwrite the document checked below when serialized as another -f query=.
+    if "query" in (variables or {}):
+        raise SafetyError("reserved GraphQL transport field: query")
     # Strip comments and string values before recognizing operation keywords.
     tokens = re.sub(r'"""[\s\S]*?"""|"(?:\\.|[^"\\])*"|#[^\n]*', " ", query)
     if re.search(r"\bmutation\b", tokens, re.I):
@@ -43,7 +47,7 @@ class GH:
 
     def graphql(self, query: str, variables: dict | None = None) -> dict:
         """Return the full response body: {data, errors?}. Partial errors are returned, not raised."""
-        guard_query(query)
+        guard_query(query, variables)
         argv = ["gh", "api", "graphql", "-f", f"query={query}"]
         for k, v in (variables or {}).items():
             if v is None:

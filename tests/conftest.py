@@ -111,7 +111,7 @@ class FakeGH:
     # --- graphql
     def graphql(self, query, variables=None):
         from ion.ghclient import guard_query
-        guard_query(query)
+        guard_query(query, variables)
         self.graphql_calls += 1
         if "userContentEdits" in query:
             nodes = list(self.edits.get(int(variables["n"]), []))
