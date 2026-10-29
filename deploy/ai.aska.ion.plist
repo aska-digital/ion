@@ -28,11 +28,13 @@
     <string>__HOME__/.local/bin:__HOME__/Library/Python/3.9/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
     <key>HOME</key>
     <string>__HOME__</string>
+    <key>ION_HOME</key>
+    <string>__ION_HOME__</string>
   </dict>
   <key>StandardOutPath</key>
-  <string>__HOME__/.ion/ion.log</string>
+  <string>__ION_HOME__/ion.log</string>
   <key>StandardErrorPath</key>
-  <string>__HOME__/.ion/ion.log</string>
+  <string>__ION_HOME__/ion.log</string>
   <key>RunAtLoad</key>
   <false/>
   <key>ProcessType</key>

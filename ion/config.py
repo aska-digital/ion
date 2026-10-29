@@ -131,14 +131,18 @@ def find_config_file() -> Path | None:
     env = os.environ.get("ION_CONFIG") or os.environ.get("MIMAR_CONFIG")
     if env:
         return Path(env).expanduser()
-    for c in (Path.cwd() / "ion.yml", home() / "ion.yml"):
+    unset = "ION_HOME" not in os.environ          # then ~/.ion/ion.yml counts even while state is still in ~/.mimar
+    for c in (Path.cwd() / "ion.yml", home() / "ion.yml", *([Path("~/.ion/ion.yml").expanduser()] if unset else [])):
         if c.exists():
             return c
     # Deprecation shim: this bot was called mimar until 2026-10-13.
-    for c in (Path.cwd() / "mimar.yml", Path("~/.mimar/mimar.yml").expanduser()):
+    legacy = Path("~/.mimar").expanduser()
+    for c in (Path.cwd() / "mimar.yml", legacy / "mimar.yml"):
         if c.exists() and "ION_HOME" not in os.environ:
-            print(f"ion: reading legacy {c}; migrate: mkdir -p ~/.ion && mv {c} ~/.ion/ion.yml (the name 'mimar' is deprecated)",
-                  file=sys.stderr)
+            # move the state too: config alone would leave state.db and the PAUSED kill switch behind in ~/.mimar
+            steps = ["mkdir -p ~/.ion"] + (["mv ~/.mimar/* ~/.ion/"] if legacy.is_dir() else [])
+            steps.append(f"mv {'~/.ion/mimar.yml' if c.parent == legacy else c} ~/.ion/ion.yml")
+            print(f"ion: reading legacy {c}; migrate: {' && '.join(steps)} (the name 'mimar' is deprecated)", file=sys.stderr)
             return c
     return None
 

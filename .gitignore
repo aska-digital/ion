@@ -7,3 +7,4 @@ uv.lock.bak
 .pytest_out
 config/
 _site/
+/ion.yml
