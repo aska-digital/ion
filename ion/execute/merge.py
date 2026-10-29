@@ -95,6 +95,24 @@ class MergeExecutor(Executor):
             return "merged"
         return Plan(p["id"], "merge", "await_merge", [Step("pr-merged", "wait for the merge PR to be merged by a maintainer", None, chk, mutates=False)])
 
+    def _verify_landed_history(self, p, s) -> str:
+        tdir, _ = self._paths(p)
+        url = self.ctx.remote_url(s["target"])
+        self.clone(url, tdir)
+        self.g([*self.auth(url), "fetch", "--quiet", "origin"], cwd=tdir)
+        base = s.get("target_branch") or self.default_branch(s["target"])
+        ref = f"origin/{base}"
+        verified = self.ledger_json(p["id"], "open_pr.verify-history")
+        tip, tree = verified.get("source_tip"), verified.get("tree")
+        if not tip or not tree:
+            raise SafetyError("missing verified source history; refusing pointer/archive")
+        if self.g(["merge-base", "--is-ancestor", tip, ref], cwd=tdir, check=False).returncode:
+            raise SafetyError("source history did not reach the target default branch; squash merges are unsafe")
+        got = self.g(["rev-parse", f"{ref}:{s['prefix']}"], cwd=tdir).stdout.strip()
+        if got != tree:
+            raise SafetyError("imported tree on target default branch differs from the verified source")
+        return f"verified {tip} and tree {tree} on {ref}"
+
     def _pointer(self, p, s) -> Plan:
         pid, A = p["id"], s["source"]
         _, pdir = self._paths(p)
@@ -103,6 +121,7 @@ class MergeExecutor(Executor):
         branch = f"ion/{pid}-pointer"
 
         def edit():
+            self._verify_landed_history(p, s)
             self.g(["checkout", "-q", "-B", branch, f"origin/{base}"], cwd=pdir)
             safe_write(pdir, "README.md",
                 f"# {A}\n\nThis repository has moved. Its code and history now live in "
@@ -139,6 +158,7 @@ class MergeExecutor(Executor):
         A = s["source"]
 
         def go():
+            self._verify_landed_history(p, s)
             if self.cfg["archive_requires_second_approval"]:
                 from ..propose.engine import create_followup
                 np_ = create_followup(self.ctx, p, "archive", {"repo": A, "reason": f"merged into {s['target']} ({p['id']})"})

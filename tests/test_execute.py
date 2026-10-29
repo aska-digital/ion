@@ -183,6 +183,7 @@ def test_merge_waits_for_pr_then_pointer_then_second_approval_archive(ctx, world
     ex.apply(p, dry_run=False)
     out = ex.apply(proposals.get(ctx.db, pid), dry_run=False)             # PR not merged yet
     assert out["waiting"] and proposals.get(ctx.db, pid)["state"]["phase"] == "await_merge"
+    sh("git", "--git-dir", str(world / "alpha-core.git"), "update-ref", "refs/heads/main", f"refs/heads/ion/{pid}")
     ctx.gh.merged.add(("alpha-core", 1))
     ex.apply(proposals.get(ctx.db, pid), dry_run=False)                   # await -> pointer
     out = ex.apply(proposals.get(ctx.db, pid), dry_run=False)             # pointer PR in source
@@ -242,6 +243,7 @@ def test_merge_pointer_refuses_a_symlinked_readme(ctx, world, tmp_path):
     p = prep(ctx, "merge", MERGE)
     ex = executor_for(ctx, "merge")
     ex.apply(p, dry_run=False)
+    sh("git", "--git-dir", str(world / "alpha-core.git"), "update-ref", "refs/heads/main", f"refs/heads/ion/{pid}")
     ctx.gh.merged.add(("alpha-core", 1))
     ex.apply(proposals.get(ctx.db, p["id"]), dry_run=False)
     with pytest.raises(SafetyError, match="symlink"):
@@ -459,3 +461,22 @@ def test_runner_skips_unapproved_and_shows_plan_when_asked(ctx):
     r = run_execute(ctx, p["id"])
     assert r["skipped"] and "git subtree add" in "\n".join(r["plans"][p["id"]])
     assert not ctx.gh.writes_to("POST", "/pulls")
+
+
+def test_squash_merged_import_cannot_open_pointer_or_archive(ctx, world):
+    p = prep(ctx, "merge", MERGE)
+    ex = executor_for(ctx, "merge")
+    ex.apply(p, dry_run=False)
+    pid = p["id"]
+    # Same content as the import PR, but only the target's prior history as parent.
+    bare = str(world / "alpha-core.git")
+    tree = sh("git", "--git-dir", bare, "rev-parse", f"ion/{pid}^{{tree}}").strip()
+    parent = head(world, "alpha-core")
+    squash = sh("git", "--git-dir", bare, "commit-tree", tree, "-p", parent, "-m", "squash import").strip()
+    sh("git", "--git-dir", bare, "update-ref", "refs/heads/main", squash)
+    ctx.gh.merged.add(("alpha-core", 1))
+    ex.apply(proposals.get(ctx.db, pid), dry_run=False)
+    with pytest.raises(SafetyError, match="source history did not reach"):
+        ex.apply(proposals.get(ctx.db, pid), dry_run=False)
+    assert not ctx.gh.writes_to("POST", "/repos/acme/alpha-cli/pulls")
+    assert not ctx.db.one("select * from proposals where kind='archive'")
