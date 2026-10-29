@@ -230,3 +230,17 @@ def test_legacy_mimar_config_is_found_with_migration_note(tmp_path, monkeypatch,
     (tmp_path / ".mimar" / "mimar.yml").write_text("org: o\n")
     assert find_config_file() == tmp_path / ".mimar" / "mimar.yml"
     assert "deprecated" in capsys.readouterr().err
+
+
+def test_refresh_skips_unchanged_live_body_but_repairs_hand_edits(ctx):
+    from helpers import MERGE, new_proposal
+    from ion.propose.engine import refresh_issue
+    from ion import proposals
+    p = new_proposal(ctx, "merge", MERGE)
+    before = len(ctx.gh.writes_to("PATCH", f"/issues/{p['issue_number']}"))
+    refresh_issue(ctx, p)
+    assert len(ctx.gh.writes_to("PATCH", f"/issues/{p['issue_number']}")) == before
+    ctx.gh.issues[p["issue_number"]]["body"] = "tampered commands"
+    refresh_issue(ctx, proposals.get(ctx.db, p["id"]))
+    assert "tampered commands" not in ctx.gh.issues[p["issue_number"]]["body"]
+    assert len(ctx.gh.writes_to("PATCH", f"/issues/{p['issue_number']}")) == before + 1
