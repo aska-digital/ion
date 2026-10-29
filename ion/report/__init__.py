@@ -7,6 +7,7 @@ from pathlib import Path
 from ..analyze import latest_analysis
 from ..collect.snapshot import latest_snapshots
 from ..util import days_since, home, iso
+from ..runhistory import freshness, freshness_line
 
 
 def dashboard(ctx) -> str:
@@ -14,6 +15,7 @@ def dashboard(ctx) -> str:
     a = latest_analysis(db)
     snaps, gen = latest_snapshots(db)
     L = [f"# Org health: {cfg['org']}", f"_Generated {iso()} from snapshot run {gen}._", ""]
+    L += [freshness_line(ctx), ""]
     if not a:
         return "\n".join(L + ["No analysis yet. Run `ion collect` then `ion analyze`."])
     live = [s for s in snaps.values() if not s["archived"]]
@@ -73,15 +75,17 @@ def _collect(ctx, results: dict):
     ev += results.get("execute", {}).get("actions", [])
     errs = list(results.get("errors", []))
     waiting = [r["id"] + " " + r["title"] for r in db.q("select id,title from proposals where status='awaiting-approval' order by num")]
-    sig = hashlib.sha256("\n".join(waiting).encode()).hexdigest()      # the awaiting-approval list
+    f = freshness(ctx, stale_after_hours=ctx.cfg.get("report", {}).get("stale_after_hours", 48))
+    stable = "\n".join(waiting) + f"\nfreshness:{f['status']}:{f['latest_status']}:{f['last_completed_status']}:{f['stale_after_hours']}"
+    sig = hashlib.sha256(stable.encode()).hexdigest()      # the awaiting-approval list
     return ev, errs, waiting, sig
 
 
 def build_digest(ctx, results: dict) -> tuple[str, bool]:
     """Short text for notifiers, and whether anything changed since the last digest."""
     ev, errs, waiting, sig = _collect(ctx, results)
-    changed = bool(ev or errs) or (bool(waiting) and sig != ctx.db.kv_get("last_digest_sig"))
-    lines = [f"ion {iso()[:10]}"] + [f"- {e}" for e in ev]
+    changed = bool(ev or errs) or (sig != ctx.db.kv_get("last_digest_sig"))
+    lines = [f"ion {iso()[:10]}", freshness_line(ctx)] + [f"- {e}" for e in ev]
     if waiting:
         lines.append(f"awaiting approval ({len(waiting)}): " + "; ".join(waiting[:6]))
     lines += [f"- error: {e}" for e in errs]

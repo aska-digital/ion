@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
 import os
 import sys
 from pathlib import Path
@@ -54,7 +56,7 @@ DEFAULTS: dict = {
     "git_identity": {"name": "ion", "email": "ion@askaconsult.com"},
     "ai_attribution": False,
     "license_template": None,
-    "report": {"org_health_issue": False},
+    "report": {"org_health_issue": False, "stale_after_hours": 48},
     "writes": {"caps": {}},
     "guards": {"enabled": True, "max_repo_fraction": 0.25, "min_repos": 4, "max_archives": 2, "max_writes": 150,
                "forbid_protection_lowering": True},
@@ -113,6 +115,9 @@ SCHEMA = {
         "archive_requires_second_approval": {"type": "boolean"},
         "exclude": _STR_LIST,
         "git_identity": {"type": "object", "required": ["name", "email"]},
+        "report": {"type": "object", "properties": {
+            "org_health_issue": {"type": "boolean"},
+            "stale_after_hours": {"type": "number", "exclusiveMinimum": 0}}},
     },
 }
 
@@ -127,6 +132,12 @@ REPO_OVERRIDE_SCHEMA = {
 
 class ConfigError(ValueError):
     pass
+
+
+def config_fingerprint(cfg) -> str:
+    """Identify effective configuration without storing its secrets or local path."""
+    data = {k: v for k, v in cfg.items() if not k.startswith("_")}
+    return hashlib.sha256(json.dumps(data, sort_keys=True, separators=(",", ":"), default=str).encode()).hexdigest()
 
 
 def deep_merge(base: dict, over: dict) -> dict:

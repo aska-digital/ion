@@ -35,6 +35,13 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--apply", action="store_true", help="let executors act (default: dry-run)")
     r.add_argument("--no-mirror", action="store_true")
     sub.add_parser("status")
+    console = sub.add_parser("console", help="export an offline HTML or JSON console from saved state; no API calls")
+    console.add_argument("--output", help="new output file (HTML default: ion-console.html)")
+    console.add_argument("--json", action="store_true", help="JSON to stdout, or to --output")
+    console.add_argument("--demo", action="store_true", help="use synthetic examples without reading local state")
+    history = sub.add_parser("runs", help="read saved pipeline history without API calls")
+    history.add_argument("--json", action="store_true")
+    history.add_argument("--limit", type=int, default=20)
     x = sub.add_parser("explain")
     x.add_argument("proposal")
     g = sub.add_parser("grep", help="search every repo's default branch in the local mirrors (no API calls)")
@@ -145,48 +152,81 @@ def cmd_execute(ctx, args, apply=None):
 def cmd_report(ctx, args, results=None):
     from .notify import notify
     from .report import build_digest, mark_digest_sent, write_dashboard
+    from .runhistory import clean_error
+    results = results if results is not None else {}
+    errors = []
     path = write_dashboard(ctx)
     out(f"dashboard: {path}")
     try:
         from .report.orghealth import publish
-        status = publish(ctx, results or {})
+        status = publish(ctx, results)
         if not status.startswith("disabled"):
             out(f"org health issue: {status}")
     except Exception as e:  # noqa: BLE001
-        out(f"org health issue not updated: {str(e)[:160]}")
-    text, changed = build_digest(ctx, results or {})
+        errors.append("org health publish: " + clean_error(e))
+        out(errors[-1])
+    text, changed = build_digest(ctx, {**results, "errors": list(results.get("errors", [])) + errors})
     if changed:
         errs = notify(ctx, text)
         if len(errs) < len(ctx.cfg["notifiers"]):
-            mark_digest_sent(ctx, results or {})
+            mark_digest_sent(ctx, results)
         for e in errs:
-            out(f"notify error (queued for retry): {e}")
+            errors.append("notify: " + clean_error(e))
+            out(f"notify error (queued for retry): {clean_error(e)}")
     else:
         out("digest: nothing changed, not sent")
-    return {"errors": []}
+    return {"errors": errors}
 
 
 def cmd_run(ctx, args):
+    from .runhistory import Journal, clean_error
     results: dict = {"errors": []}
+    journal = Journal(ctx, apply=args.apply)
     if ctx.cfg.is_paused():
         out("kill switch is on: reads and reports only, no GitHub writes")
     steps = [("collect", lambda: cmd_collect(ctx, args)), ("analyze", lambda: cmd_analyze(ctx, args)),
              ("propose", lambda: cmd_propose(ctx, args)), ("approvals", lambda: cmd_sync(ctx, args)),
              ("execute", lambda: cmd_execute(ctx, args, apply=args.apply))]
-    for name, fn in steps:
-        try:
-            results[name] = fn()
-            results["errors"] += results[name].get("errors", []) if isinstance(results[name], dict) and name != "collect" else []
-        except Exception as e:  # noqa: BLE001
-            results["errors"].append(f"{name}: {str(e)[:300]}")
-            out(f"{name} failed: {e}")
-            if name in ("collect", "analyze"):
-                break
-    cmd_report(ctx, args, results)
+    blocked = None
+    try:
+        for name, fn in steps:
+            if blocked:
+                journal.skip(name, blocked)
+                continue
+            try:
+                with journal.step(name) as state:
+                    result = results[name] = fn()
+                    errors = list(result.get("errors", [])) if isinstance(result, dict) else []
+                    if name == "collect":
+                        journal.collection(result)
+                        errors += list(result.get("warnings", []))
+                        if result.get("partial"):
+                            errors.append("collection coverage is partial")
+                        if not ctx.sync_mirrors:
+                            errors.append("mirror synchronization disabled; coverage incomplete")
+                    if errors:
+                        state.update(status="warning", errors=errors)
+                        results["errors"] += [f"{name}: {clean_error(e)}" for e in errors]
+            except Exception as e:  # noqa: BLE001
+                results["errors"].append(f"{name}: {clean_error(e)}")
+                out(f"{name} failed: {clean_error(e)}")
+                if name in ("collect", "analyze"):
+                    blocked = f"{name} failed"
+        with journal.step("report") as state:
+            report = cmd_report(ctx, args, results)
+            if report.get("errors"):
+                state.update(status="failed", errors=report["errors"])
+                results["errors"] += report["errors"]
+    except BaseException as e:
+        journal.finish(results["errors"] + [clean_error(e)], interrupted=not isinstance(e, Exception))
+        raise
+    journal.finish(results["errors"])
     return 1 if results["errors"] else 0
 
 
 def cmd_status(ctx, args):
+    from .runhistory import freshness_line
+    out(freshness_line(ctx))
     last = ctx.db.one("select * from runs order by id desc limit 1")
     out(f"kill switch: {'ON (paused)' if ctx.cfg.is_paused() else 'off'}")
     out(f"org: {ctx.cfg['org']}  tracker: {ctx.cfg['tracker_repo']}  llm: {ctx.cfg['llm']['backend']}  approvals: {','.join(ctx.cfg['approval_sources'])}")
@@ -328,9 +368,54 @@ def _hoist_config(argv: list[str]) -> list[str]:
     return (["--config", cfg] if cfg else []) + out
 
 
+def cmd_offline(args) -> int:
+    from pathlib import Path
+    import os
+    from .console_state import build_state, open_console
+    from .runhistory import recent_runs
+    try:
+        if args.cmd == "console" and args.demo:
+            from .console_demo import demo_state
+            data = demo_state()
+        else:
+            with open_console(args.config) as ctx:
+                data = recent_runs(ctx, limit=args.limit) if args.cmd == "runs" else build_state(ctx)
+        if args.cmd == "runs":
+            if args.json:
+                out(json.dumps(data, indent=2))
+            elif not data:
+                out("No pipeline runs recorded. Collection history is separate.")
+            else:
+                for row in data:
+                    out(f"{row['id']:>4}  {row['status']:<12} {row['mode']:<8} {row['started']}  {len(row['steps'])} steps")
+            return 0
+        if args.json:
+            content = json.dumps(data, indent=2) + "\n"
+            if not args.output:
+                out(content.rstrip())
+                return 0
+        else:
+            from .console_html import render_console
+            content = render_console(data)
+        path = Path(args.output or "ion-console.html").expanduser()
+        # Exports may include private repository evidence. Exclusive creation also
+        # prevents an output argument from overwriting state, configuration or code.
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            stream.write(content)
+        out(f"Offline console: {path.resolve()}")
+        return 0
+    except Exception as e:  # noqa: BLE001
+        from .runhistory import clean_error
+        print(f"offline export failed: {clean_error(e)}", file=sys.stderr)
+        return 1
+
+
 def main(argv=None) -> int:
     args = build_parser().parse_args(_hoist_config(list(sys.argv[1:] if argv is None else argv)))
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING, format="%(levelname)s %(message)s")
+    if args.cmd in ("console", "runs"):
+        return cmd_offline(args)
     if args.cmd in ("pause", "resume"):
         f = home() / "PAUSED"
         if args.cmd == "pause":

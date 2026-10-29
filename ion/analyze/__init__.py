@@ -6,7 +6,7 @@ import json
 import logging
 
 from ..collect.snapshot import latest_snapshots
-from ..config import parse_repo_override
+from ..config import config_fingerprint, parse_repo_override
 from ..gitrepo import GitRepo
 from ..util import iso
 from . import boundaries, cohesion, coupling, health, lifecycle, policy
@@ -16,6 +16,7 @@ log = logging.getLogger("ion")
 
 def run_analyze(ctx) -> dict:
     result = compute_analysis(ctx)
+    result["config_fingerprint"] = config_fingerprint(ctx.cfg)
     ctx.db.x("insert into analyses(ts,gen,blob) values(?,?,?)", (iso(), result["gen"], json.dumps(result)))
     return result
 
