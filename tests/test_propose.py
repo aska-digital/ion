@@ -275,3 +275,15 @@ def test_llm_call_cap_and_none_backend():
     assert not NoneLLM(load_config(None, {"org": "o"})).enabled
     with pytest.raises(LLMError):
         NoneLLM(load_config(None, {"org": "o"})).complete_json("x")
+
+
+def test_llm_html_cannot_hide_plan_or_replace_executor_rollback(ctx):
+    from helpers import MERGE, new_proposal
+    from ion.propose.engine import refresh_issue
+    p = new_proposal(ctx, "merge", MERGE)
+    ctx.db.set_state(p["id"], text={**p["text"], "source": "llm", "summary": "<!--\n```", "rollback_plan": ["No rollback needed."]})
+    refresh_issue(ctx, proposals.get(ctx.db, p["id"]))
+    body = proposals.get(ctx.db, p["id"])["body"]
+    assert "<!--\n```" not in body and "&lt;" in body
+    assert "No rollback needed." not in body
+    assert "Close the PR in" in body and "plan-sha256:" in body
