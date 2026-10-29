@@ -80,6 +80,13 @@ def check(snap: dict, files: set[str] | None, cfg, override: dict | None = None)
             if rule is None:
                 add("branch_protection", "drift", f"no protection on {branch}", {"class": "branch_protection", "repo": repo, "branch": branch, "settings": bp})
             else:
+                # Policy is a minimum. Keep each existing stronger field in any fix.
+                bp = {**bp,
+                      "require_pr": bool(bp.get("require_pr") or rule.get("requiresApprovingReviews")),
+                      "required_approvals": max(bp.get("required_approvals", 0), rule.get("requiredApprovingReviewCount", 0)),
+                      "enforce_admins": bool(bp.get("enforce_admins") or rule.get("isAdminEnforced")),
+                      "allow_force_pushes": bool(bp.get("allow_force_pushes") and rule.get("allowsForcePushes")),
+                      "allow_deletions": bool(bp.get("allow_deletions") and rule.get("allowsDeletions"))}
                 diffs = []
                 if bool(rule.get("requiresApprovingReviews")) != bool(bp.get("require_pr")):
                     diffs.append("require_pr")
