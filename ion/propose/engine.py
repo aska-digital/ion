@@ -192,6 +192,11 @@ def _create(ctx, c: dict, gen: int, res: dict) -> None:
 
 def _refresh_existing(ctx, p: dict, c: dict, res: dict) -> None:
     db = ctx.db
+    if p["status"] == "executing":
+        # Approval covers the subject that execution started with, including later phases.
+        refresh_issue(ctx, p)
+        res["updated"].append(p["id"])
+        return
     plan = plan_for(ctx, c["kind"], c["subject"])
     new_hash = plan.fingerprint()
     replan = scoring.replan_needed(p["plan_hash"], new_hash, p["epoch_score"], c["score"], ctx.cfg)
