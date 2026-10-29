@@ -275,3 +275,34 @@ def test_llm_call_cap_and_none_backend():
     assert not NoneLLM(load_config(None, {"org": "o"})).enabled
     with pytest.raises(LLMError):
         NoneLLM(load_config(None, {"org": "o"})).complete_json("x")
+
+
+def test_obsolete_analysis_archive_is_dropped_and_approval_revoked(ctx):
+    ctx.cfg["thresholds"]["persist_runs"] = 1
+    run_collect(ctx); run_analyze(ctx); run_propose(ctx)
+    p = proposals.view(ctx.db.one("select * from proposals where key='archive:old-tool'"))
+    from helpers import approve
+    approve(ctx, p)
+    from helpers import set_override
+    set_override(ctx, "old-tool", "ignore: true\n")
+    run_analyze(ctx); run_propose(ctx)
+    after = proposals.get(ctx.db, p["id"])
+    assert after["status"] == "dropped" and "obsolete" in after["body"]
+    assert not ctx.db.q("select * from approvals where proposal=? and valid=1", (p["id"],))
+
+
+def test_analyzer_archive_rechecks_live_push_before_write(ctx, monkeypatch):
+    from helpers import new_proposal
+    from ion.execute import executor_for
+    from ion.util import SafetyError, iso
+    p = new_proposal(ctx, "archive", {"repo": "old-tool"})
+    p["key"] = "archive:old-tool"
+    original = ctx.gh.rest
+    def rest(method, path, body=None):
+        if method == "GET" and path == "/repos/acme/old-tool":
+            return {"pushed_at": iso(), "archived": False, "topics": []}
+        return original(method, path, body)
+    monkeypatch.setattr(ctx.gh, "rest", rest)
+    with pytest.raises(SafetyError, match="no longer dormant"):
+        executor_for(ctx, "archive").plan(p).steps[0].fn()
+    assert "old-tool" not in ctx.gh.archived

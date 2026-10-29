@@ -61,9 +61,20 @@ class ArchiveExecutor(Executor):
         r = p["subject"]["repo"]
         return Plan(p["id"], "archive", "apply", [
             Step("archive", f"archive {r} (read-only; nothing is deleted)", None,
-                 lambda: self.ctx.writes.submit(WriteRequest("archive_repo", r, {}, p["id"])) and "archived"),
+                 lambda: self._archive(p, r)),
             Step("verify", "confirm archived", None,
                  lambda: self._chk(r), mutates=False)])
+
+    def _archive(self, p, repo):
+        # Analyzer archives must still be dormant at the point of the write.
+        # Merge follow-ups have their own approval and recent pointer commits.
+        if p.get("key") == f"archive:{repo}" and not p.get("parent"):
+            from ..analyze.lifecycle import stage_of
+            live = self.gh.rest("GET", f"/repos/{self.cfg.org}/{repo}")
+            if not live.get("pushed_at") or stage_of(repo, live, self.cfg) != "archive-proposed":
+                raise SafetyError(f"{repo}: archive candidate is no longer dormant (or live push time is unknown)")
+        self.ctx.writes.submit(WriteRequest("archive_repo", repo, {}, p["id"]))
+        return "archived"
 
     def _chk(self, r):
         if not self.gh.rest("GET", f"/repos/{self.cfg.org}/{r}").get("archived"):
