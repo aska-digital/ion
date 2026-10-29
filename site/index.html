@@ -129,7 +129,7 @@
     <p class="verdict" id="sim-verdict" aria-live="polite"></p>
     <div class="log" id="sim-log" aria-label="Model run log"></div>
   </div>
-  <p class="cap">A teaching model with invented repos and a short stand-in fingerprint. The rules are ion&rsquo;s real ones: approval binds to the plan hash (<a href="https://github.com/aska-digital/ion/blob/main/SPEC.md">SPEC §2.4</a>), the breaker guards are the shipped defaults (<a href="guide.html#config">guide</a>), and the executor re-derives approval from the record instead of trusting a stored flag.</p>
+  <p class="cap">A teaching model with invented repos and a short stand-in fingerprint. The model illustrates the design; see the <a href="#status">known implementation limits</a>. The intended rules are: approval binds to the plan hash (<a href="https://github.com/aska-digital/ion/blob/main/SPEC.md">SPEC §2.4</a>), the breaker guards are the shipped defaults (<a href="guide.html#config">guide</a>), and the executor re-derives approval from the record instead of trusting a stored flag.</p>
 
   <div class="cards c3">
     <article class="card"><p class="ck">Collect</p><h3>One query, local mirrors</h3><p>Metadata comes from one batched GraphQL query under a points budget. File contents come from bare git mirrors on the machine, never from repeated API calls.</p></article>
@@ -225,6 +225,14 @@
 <section class="panel reveal" id="status" data-idx="06" data-short="Status">
   <div class="plabel"><b><span class="k">06</span> // Status</b><span class="tags"><span class="tag t-spec">SPEC §7–8</span></span></div>
   <h2>What is built, what is not, and what will never be.</h2>
+  <p class="note"><strong>Known limits in the current implementation.</strong> The approval and safety panels describe the design. The open defects below mean those guarantees are not yet complete. Keep executors in dry-run while assessing these limits for your organisation.</p>
+  <ul>
+    <li>Bus identity and per-repo authority: <a href="https://github.com/aska-digital/ion/issues/27">#27</a>. Executing subjects and whole-plan hashes: <a href="https://github.com/aska-digital/ion/issues/31">#31</a>, <a href="https://github.com/aska-digital/ion/issues/38">#38</a>. Optional follow-up archive approval: <a href="https://github.com/aska-digital/ion/issues/40">#40</a>.</li>
+    <li>Equivalent destructive git flags: <a href="https://github.com/aska-digital/ion/issues/39">#39</a>. Preserving required status checks: <a href="https://github.com/aska-digital/ion/issues/3">#3</a>. The fraction guard has a four-repo floor: <a href="https://github.com/aska-digital/ion/issues/7">#7</a>.</li>
+    <li>Crash recovery and breaker-stop resumption: <a href="https://github.com/aska-digital/ion/issues/33">#33</a>, <a href="https://github.com/aska-digital/ion/issues/29">#29</a>. Policy proposals currently skip persistence: <a href="https://github.com/aska-digital/ion/issues/4">#4</a>.</li>
+    <li>Verification after a maintainer merges an import: <a href="https://github.com/aska-digital/ion/issues/32">#32</a>. Preserving root git metadata during a split: <a href="https://github.com/aska-digital/ion/issues/37">#37</a>.</li>
+  </ul>
+  <p>Repo overrides can no longer widen maintainers (<a href="https://github.com/aska-digital/ion/pull/50">#50</a>), and every push refspec is now checked (<a href="https://github.com/aska-digital/ion/pull/59">#59</a>). Follow the linked issues for the remaining fixes; an open draft is not a shipped guarantee.</p>
   <div class="status">
     <div class="st k"><h3>Built and tested</h3><ul>
       <li>The full six-stage pipeline, offline tests end to end: merge, split, move and autofix run against local bare repos</li>
@@ -249,7 +257,7 @@
       <li>Webhooks or a live server. One scheduled pass a day is the design</li>
     </ul></div>
   </div>
-  <p class="note">Run the checks yourself: <code>uv run pytest -q</code> and <code>uv run python scripts/check_licenses.py</code>. The licence guard fails the build if any dependency falls outside MIT, BSD, Apache-2.0, ISC, PSF or MPL-2.0. No GPL dependency, ever.</p>
+  <p class="note">Install git-filter-repo and git subtree before running the offline suite. Run the checks yourself: <code>uv run pytest -q</code> and <code>uv run python scripts/check_licenses.py</code>. The licence guard fails the build if any dependency falls outside MIT, BSD, Apache-2.0, ISC, PSF or MPL-2.0. No GPL dependency, ever.</p>
 </section>
 <div class="link" aria-hidden="true"><i></i></div>
 
