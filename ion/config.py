@@ -107,7 +107,7 @@ SCHEMA = {
 REPO_OVERRIDE_SCHEMA = {
     "type": "object",
     "properties": {"maintainers": _STR_LIST, "ignore": {"type": "boolean"}, "policy": {"type": "object"},
-                   "exclude_paths": _STR_LIST, "enabled": {"type": "boolean"},
+                   "enabled": {"type": "boolean"},
                    "policy_actions": {"type": "object", "additionalProperties": {"enum": ["log", "issue", "fix"]}}},
     "additionalProperties": False,
 }

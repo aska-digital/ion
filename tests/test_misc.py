@@ -230,3 +230,9 @@ def test_legacy_mimar_config_is_found_with_migration_note(tmp_path, monkeypatch,
     (tmp_path / ".mimar" / "mimar.yml").write_text("org: o\n")
     assert find_config_file() == tmp_path / ".mimar" / "mimar.yml"
     assert "deprecated" in capsys.readouterr().err
+
+
+def test_unsupported_repo_exclude_paths_is_rejected():
+    from ion.config import parse_repo_override
+    override, error = parse_repo_override("exclude_paths: [private/]\n")
+    assert override == {} and error
