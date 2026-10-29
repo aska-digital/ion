@@ -275,3 +275,19 @@ def test_llm_call_cap_and_none_backend():
     assert not NoneLLM(load_config(None, {"org": "o"})).enabled
     with pytest.raises(LLMError):
         NoneLLM(load_config(None, {"org": "o"})).complete_json("x")
+
+
+def test_failed_policy_fix_is_deduplicated(ctx):
+    from helpers import new_proposal
+    from ion.propose.engine import gather_candidates
+    run_collect(ctx)
+    analysis = run_analyze(ctx)
+    snaps = __import__("ion.collect.snapshot", fromlist=["latest_snapshots"]).latest_snapshots(ctx.db)[0]
+    candidate = next(c for c in gather_candidates(ctx, analysis, snaps) if c["kind"] == "policy_fix")
+    p = new_proposal(ctx, candidate["kind"], candidate["subject"])
+    ctx.db.x("update proposals set key=? where id=?", (candidate["key"], p["id"]))
+    proposals.set_status(ctx.db, p["id"], "failed")
+    for _ in range(3):
+        run_propose(ctx)
+    rows = ctx.db.q("select * from proposals where key=?", (candidate["key"],))
+    assert len(rows) == 1 and rows[0]["status"] == "failed"

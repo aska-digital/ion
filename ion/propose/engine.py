@@ -121,6 +121,13 @@ def run_propose(ctx, dry_run: bool = False) -> dict:
                  " evidence=excluded.evidence, updated=excluded.updated",
                  (key, c["kind"], json.dumps(c["subject"]), gen, gen, streak, c["score"], json.dumps(c["evidence"], default=str), iso()))
         latest = _latest_for_key(db, key)
+        if latest is not None and latest["status"] == "failed":
+            info["state"] = "failed:" + latest["id"]
+            # Keep the failure and its approved plan visible; a persistent API failure
+            # must not open a new tracker issue or silently retry every run.
+            if not dry_run:
+                refresh_issue(ctx, proposals.view(latest))
+            continue
         if latest is not None and latest["status"] in ACTIVE:
             p = proposals.view(latest)
             info["state"] = "tracked:" + p["id"]
