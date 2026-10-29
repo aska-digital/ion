@@ -459,3 +459,16 @@ def test_runner_skips_unapproved_and_shows_plan_when_asked(ctx):
     r = run_execute(ctx, p["id"])
     assert r["skipped"] and "git subtree add" in "\n".join(r["plans"][p["id"]])
     assert not ctx.gh.writes_to("POST", "/pulls")
+
+
+def test_subtree_dirty_refusal_contains_worktree_diagnostics(ctx, tmp_path, monkeypatch):
+    from ion.execute.base import Executor
+    from subprocess import CompletedProcess
+    ex = Executor(ctx)
+    def fake(args, **kw):
+        if "subtree" in args:
+            raise RuntimeError("fatal: working tree has modifications. Cannot add.")
+        return CompletedProcess(args, 0, " M tracked.py\n" if "status" in args else "1 file changed", "")
+    monkeypatch.setattr(ex, "g", fake)
+    with pytest.raises(RuntimeError, match="M tracked.py"):
+        ex.subtree_add(["subtree", "add", "--prefix=x"], cwd=tmp_path)

@@ -183,7 +183,7 @@ class MoveCodeExecutor(Executor):
             def sub():
                 self.g(["checkout", "-q", "-B", branch, f"origin/{tb}"], cwd=tdir)
                 cur = self.g(["rev-parse", "--abbrev-ref", "HEAD"], cwd=fdir).stdout.strip()
-                self.g([*self.identity_args(), "subtree", "add", f"--prefix={dest}", str(fdir), cur, "-m",
+                self.subtree_add([*self.identity_args(), "subtree", "add", f"--prefix={dest}", str(fdir), cur, "-m",
                         f"Move {D} from {S} (history preserved) [{pid}]\n\nIon-Proposal: {pid}"], cwd=tdir)
 
             def pr():
