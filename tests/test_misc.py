@@ -230,3 +230,20 @@ def test_legacy_mimar_config_is_found_with_migration_note(tmp_path, monkeypatch,
     (tmp_path / ".mimar" / "mimar.yml").write_text("org: o\n")
     assert find_config_file() == tmp_path / ".mimar" / "mimar.yml"
     assert "deprecated" in capsys.readouterr().err
+
+
+def test_branch_policy_is_a_minimum_and_retains_stronger_fields():
+    from ion.analyze.policy import check
+    from ion.writes import lowers_protection
+    cfg = load_config(None, {"org": "o", "policy": {"branch_protection": {"require_pr": True, "required_approvals": 0}}})
+    rule = {"pattern": "main", "requiresApprovingReviews": True, "requiredApprovingReviewCount": 2,
+            "allowsForcePushes": False, "allowsDeletions": False, "isAdminEnforced": True}
+    snap = {"name": "r", "default_branch": "main", "private": False, "protection": [rule]}
+    finding = next(f for f in check(snap, set(), cfg) if f["class"] == "branch_protection")
+    assert finding["status"] == "ok"
+    rule["allowsForcePushes"] = True
+    finding = next(f for f in check(snap, set(), cfg) if f["class"] == "branch_protection")
+    assert finding["status"] == "drift"
+    settings = finding["fix"]["settings"]
+    assert settings["required_approvals"] == 2 and settings["enforce_admins"]
+    assert not settings["allow_force_pushes"] and not lowers_protection(rule, settings)
