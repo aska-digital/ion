@@ -21,6 +21,7 @@ from .. import proposals
 from ..analyze import latest_analysis
 from ..approve import core, labels
 from ..util import days_since, iso, parse_ts
+from ..ghclient import GHError
 
 BOX_RE = re.compile(r"^\s*- \[([ xX])\] <!-- ion:box (approve|hold) (P-\d{4,}) ([0-9a-f]{12}) -->", re.M)
 EDITS_QUERY = """query($owner:String!, $repo:String!, $n:Int!) { repository(owner:$owner, name:$repo) { issue(number:$n) {
@@ -114,10 +115,17 @@ def publish(ctx, results: dict) -> str:
     sha = hashlib.sha256(body.encode()).hexdigest()
     # the timestamp inside the body would make every body unique: compare without it
     stable = hashlib.sha256(re.sub(r"Updated [0-9T:Z-]+", "", body).encode()).hexdigest()
-    prev = _written(ctx.db) or {}
-    if prev.get("stable") == stable and not ctx.db.kv_get("dashboard_dirty"):
-        return f"unchanged (#{prev.get('number')})"
     n = ctx.db.kv_get("dashboard_issue")
+    if n:
+        try:
+            ctx.gh.rest("GET", f"/repos/{ctx.cfg.org}/{ctx.cfg['tracker_repo']}/issues/{int(n)}")
+        except GHError as exc:
+            if exc.status != 404:
+                raise
+            n = None
+    prev = _written(ctx.db) or {}
+    if n and prev.get("stable") == stable and not ctx.db.kv_get("dashboard_dirty"):
+        return f"unchanged (#{prev.get('number')})"
     title = ctx.cfg["report"].get("dashboard_title", "Org health")
     if n:
         ctx.writes.tracker("edit_issue_body", number=int(n), title=title, body=body)

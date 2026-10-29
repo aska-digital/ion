@@ -142,3 +142,34 @@ def test_dashboard_shows_blocks_stops_and_errors(tmp_path, home, world):
     body, _ = dashboard.render_body(ctx, {"errors": ["propose: boom"]})
     assert "stopped at its GraphQL budget" in body and "circuit breaker tripped" in body and "propose: boom" in body
     assert "secret-sauce: branch_protection needs a paid plan" in body and "## Lifecycle" in body and "old-tool: `archive-proposed`" in body
+
+
+def test_deleted_dashboard_is_recreated_even_when_unchanged(tmp_path, home, world, monkeypatch):
+    from ion.ghclient import GHError
+    ctx = dctx(tmp_path, world)
+    _, old = setup(ctx)
+    original = ctx.gh.rest
+    def rest(method, path, body=None):
+        if method == "GET" and path.endswith(f"/issues/{old}"):
+            raise GHError("Not Found", 404)
+        return original(method, path, body)
+    monkeypatch.setattr(ctx.gh, "rest", rest)
+    assert dashboard.publish(ctx, {}).startswith("written")
+    new = ctx.db.kv_get("dashboard_issue")
+    assert new != old and ctx.db.kv_get("dashboard_written")["number"] == new
+
+
+def test_dashboard_read_errors_do_not_create_duplicate(tmp_path, home, world, monkeypatch):
+    import pytest
+    from ion.ghclient import GHError
+    ctx = dctx(tmp_path, world)
+    _, old = setup(ctx)
+    original = ctx.gh.rest
+    def rest(method, path, body=None):
+        if method == "GET" and path.endswith(f"/issues/{old}"):
+            raise GHError("Forbidden", 403)
+        return original(method, path, body)
+    monkeypatch.setattr(ctx.gh, "rest", rest)
+    with pytest.raises(GHError):
+        dashboard.publish(ctx, {})
+    assert ctx.db.kv_get("dashboard_issue") == old
