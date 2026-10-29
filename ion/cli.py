@@ -5,6 +5,7 @@ import argparse
 import json
 import logging
 import sys
+import time
 
 from . import __version__, proposals
 from .config import ConfigError, load_config
@@ -173,15 +174,26 @@ def cmd_run(ctx, args):
     steps = [("collect", lambda: cmd_collect(ctx, args)), ("analyze", lambda: cmd_analyze(ctx, args)),
              ("propose", lambda: cmd_propose(ctx, args)), ("approvals", lambda: cmd_sync(ctx, args)),
              ("execute", lambda: cmd_execute(ctx, args, apply=args.apply))]
+    from . import runrecord
+    run_id = runrecord.start(ctx.db)
     for name, fn in steps:
+        started, before = time.monotonic(), runrecord.counters(ctx)
+        step_errors = []
         try:
             results[name] = fn()
-            results["errors"] += results[name].get("errors", []) if isinstance(results[name], dict) and name != "collect" else []
+            step_errors = list(results[name].get("errors", [])) if isinstance(results[name], dict) else []
+            if name == "collect" and results[name].get("partial"):
+                step_errors.append("collection incomplete")
+            results["errors"] += step_errors
         except Exception as e:  # noqa: BLE001
-            results["errors"].append(f"{name}: {str(e)[:300]}")
+            step_errors = [f"{name}: {str(e)[:300]}"]
+            results["errors"] += step_errors
             out(f"{name} failed: {e}")
             if name in ("collect", "analyze"):
                 break
+        finally:
+            runrecord.record(ctx, run_id, name, time.monotonic()-started, before, step_errors)
+    runrecord.finish(ctx.db, run_id, not results["errors"])
     cmd_report(ctx, args, results)
     return 1 if results["errors"] else 0
 

@@ -14,6 +14,8 @@ def dashboard(ctx) -> str:
     a = latest_analysis(db)
     snaps, gen = latest_snapshots(db)
     L = [f"# Org health: {cfg['org']}", f"_Generated {iso()} from snapshot run {gen}._", ""]
+    from ..runrecord import health
+    L += [health(ctx)["detail"], ""]
     if not a:
         return "\n".join(L + ["No analysis yet. Run `ion collect` then `ion analyze`."])
     live = [s for s in snaps.values() if not s["archived"]]
@@ -80,8 +82,10 @@ def _collect(ctx, results: dict):
 def build_digest(ctx, results: dict) -> tuple[str, bool]:
     """Short text for notifiers, and whether anything changed since the last digest."""
     ev, errs, waiting, sig = _collect(ctx, results)
-    changed = bool(ev or errs) or (bool(waiting) and sig != ctx.db.kv_get("last_digest_sig"))
-    lines = [f"ion {iso()[:10]}"] + [f"- {e}" for e in ev]
+    from ..runrecord import health
+    run_health = health(ctx)
+    changed = (run_health["stale"] != ctx.db.kv_get("last_pipeline_stale")) or bool(ev or errs) or (bool(waiting) and sig != ctx.db.kv_get("last_digest_sig"))
+    lines = [f"ion {iso()[:10]}", run_health["detail"]] + [f"- {e}" for e in ev]
     if waiting:
         lines.append(f"awaiting approval ({len(waiting)}): " + "; ".join(waiting[:6]))
     lines += [f"- error: {e}" for e in errs]
@@ -90,3 +94,5 @@ def build_digest(ctx, results: dict) -> tuple[str, bool]:
 
 def mark_digest_sent(ctx, results: dict) -> None:
     ctx.db.kv_set("last_digest_sig", _collect(ctx, results)[3])
+    from ..runrecord import health
+    ctx.db.kv_set("last_pipeline_stale", health(ctx)["stale"])

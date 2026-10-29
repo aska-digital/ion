@@ -44,6 +44,8 @@ def render_body(ctx, results: dict) -> tuple[str, dict]:
     a = latest_analysis(db)
     last = db.one("select * from runs order by id desc limit 1")
     L = ["<!-- ion:dashboard -->", f"# Org health: {cfg['org']}", ""]
+    from ..runrecord import health
+    L += [health(ctx)["detail"], ""]
     meta = f"Updated {iso()}"
     if last:
         meta += f" · last collect: {last['repos']} repos, {last['cost']} GraphQL points" + (" (partial)" if last["partial"] else "")
