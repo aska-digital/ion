@@ -19,6 +19,18 @@ class GHError(RuntimeError):
 class GH:
     def __init__(self, runner=None):
         self._runner = runner or self._default_runner
+        self.metrics = dict(graphql_calls=0, rest_calls=0, api_failures=0, graphql_points=0)
+
+    def _call(self, argv, stdin, kind):
+        self.metrics[kind + "_calls"] += 1
+        try:
+            result = self._runner(argv, stdin)
+        except BaseException:
+            self.metrics["api_failures"] += 1
+            raise
+        if result[0] != 0:
+            self.metrics["api_failures"] += 1
+        return result
 
     @staticmethod
     def _default_runner(argv: list[str], stdin: str | None):
@@ -32,13 +44,19 @@ class GH:
             if v is None:
                 continue
             argv += ["-F" if isinstance(v, (int, bool)) else "-f", f"{k}={v}"]
-        rc, out, err = self._runner(argv, None)
+        rc, out, err = self._call(argv, None, "graphql")
         try:
             body = json.loads(out) if out.strip() else None
         except ValueError:
             body = None
         if body is None or ("data" not in body):
+            if rc == 0:
+                self.metrics["api_failures"] += 1
             raise GHError(redact(err.strip() or out.strip())[:500])
+        rate = (body.get("data") or {}).get("rateLimit") or {}
+        self.metrics["graphql_points"] += rate.get("cost", 0) or 0
+        if body.get("errors") and rc == 0:
+            self.metrics["api_failures"] += 1
         return body
 
     def rest(self, method: str, path: str, body: dict | None = None):
@@ -47,7 +65,7 @@ class GH:
         if body is not None:
             argv += ["--input", "-"]
             stdin = json.dumps(body)
-        rc, out, err = self._runner(argv, stdin)
+        rc, out, err = self._call(argv, stdin, "rest")
         if rc != 0:
             status = None
             for tok in (err + out).split():
@@ -59,7 +77,7 @@ class GH:
 
     def paginate(self, path: str):
         argv = ["gh", "api", "--paginate", "--slurp", path, "-H", "Accept: application/vnd.github+json"]
-        rc, out, err = self._runner(argv, None)
+        rc, out, err = self._call(argv, None, "rest")
         if rc != 0:
             raise GHError(redact(err.strip() or out.strip())[:500])
         pages = json.loads(out)

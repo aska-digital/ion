@@ -19,6 +19,7 @@ notifiers:                    # stdout | file | divan_bus | github_issue | webho
 #   maintainer_seats: [some-seat]
 llm: {backend: none, model_default: haiku, model_structural: sonnet, max_calls_per_run: 20}
 budget: {graphql_points_per_run: 500}
+report: {org_health_issue: false, stale_after_hours: 48}
 policy:
   default_branch: main
   branch_protection:

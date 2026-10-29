@@ -96,6 +96,12 @@ The kill switch is `~/.ion/PAUSED`, or `paused: true` in config. Work dirs go in
 ### 2.8 Config preview (`ion/planconfig.py`) *(v2)*
 `ion plan-config NEW.yml` (or `--set key=value`) runs the analysis and candidate gathering under the current and the new config over the same snapshot and mirrors, and reports: changed keys, candidates added, removed, rescored or newly blocked, policy drift and action-level changes, repos that would opt out, lifecycle stage changes, boundary violations, and which open proposals would be re-planned or dropped. It writes nothing.
 
+### 2.9 Offline operator console and pipeline journal
+
+`ion console` exports a self-contained HTML view or JSON from a consistent local read transaction. `--demo` uses synthetic records without opening local state. The console makes no service calls, imports no autofix plugins and cannot approve or execute. It shows collection completeness, matching analysis generation and configuration, mirror ref coverage, saved proposal decisions, current phase plans, ledger evidence and run history. Unknown and mismatched evidence remains explicit. See [the operator guide](docs/operator-console.md).
+
+`pipeline_runs` and `pipeline_steps` record the full pipeline separately from collection `runs`: start, finish, outcome, duration, configuration hash, collection generation, measured API usage, broker writes and errors. Interrupted or partial work cannot become a successful freshness record. `report.stale_after_hours` defaults to 48. Reports generated before their own delivery completes explicitly mark the current outcome as pending.
+
 ## 3. Config (`ion.yml`; per-repo overrides in `<repo>/.github/ion.yml`)
 See `ion.example.yml`. New keys in v2:
 

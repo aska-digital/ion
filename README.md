@@ -19,6 +19,8 @@ collect -> analyze -> propose -> approve -> execute -> report
 
 ## Features
 
+- **Offline operator console.** Search the fleet, inspect proposal evidence and phase plans, and follow complete pipeline runs in one self-contained HTML file. It reads saved state without contacting GitHub, loading plugins, or changing approvals. Export the same evidence as JSON.
+- **Run history and freshness.** Every pipeline stage records its outcome, duration, API usage and writes. Partial, failed and interrupted runs remain visible. A configurable freshness warning tracks the last complete successful run.
 - **Typed write requests with per-run caps.** Every GitHub write is a validated request of a known type; each type has a cap per run (5 PRs, 1 archive, ...). Over the cap, work waits for the next run.
 - **Circuit breaker.** A run that would touch more than a quarter of the org, archive more than 2 repos, lower branch protection anywhere, or make too many writes is aborted before it writes.
 - **Approval bound to a plan hash.** The issue shows `plan-sha256: ...`; an approval counts only for that hash; any re-plan takes the label off and asks again.
@@ -43,6 +45,24 @@ uv run ion --config ion.yml doctor
 ```
 
 `doctor` checks gh auth, git and subtree, filter-repo, the LLM backend, the bus (if used) and the config.
+
+### Open the console
+
+Try the interface without credentials or local state:
+
+```sh
+uv run ion console --demo --output ion-tour.html
+```
+
+Open `ion-tour.html` in a browser. The tour uses clearly marked synthetic data. With an existing Ion state directory, export real saved evidence:
+
+```sh
+uv run ion --config ion.yml console --output ion-console.html
+uv run ion --config ion.yml console --json
+uv run ion runs --json --limit 10
+```
+
+The HTML contains its own styles and scripts and works without a server. Choose a new output filename for each export; existing files are never overwritten. Exports can contain private repository details and are created with owner-only permissions. The console shows saved evidence, not live authorization. See [the operator guide](docs/operator-console.md) for freshness, plan hashes and storage limits.
 
 ## Architecture
 
@@ -79,6 +99,7 @@ Keys worth knowing:
 | `lifecycle` | `dormant_days`, `frozen` (repos), `frozen_topic` |
 | `boundaries` | tag rules `[{from, allow}]`, `scope_prefix`, `block_cross_scope_merge` |
 | `report.org_health_issue` | publish the Org health dashboard issue |
+| `report.stale_after_hours` | warn when the last complete successful pipeline is this old (default 48 hours) |
 | `thresholds` | `merge_coupling`, `split_cohesion_gap`, `stale_days`, `persist_runs`, `cooldown_days`, ... |
 | `quorum`, `quorum_by_kind` | approvals required per proposal |
 | `approval_ttl_days` | approvals expire (default 14) |
@@ -129,9 +150,11 @@ ion grep PATTERN [--path GLOB] [--repo GLOB] [-i] [-F]
 ion autofix [NAME] [--repo GLOB] [--propose]
 ion plan-config NEW.yml            (or --set key=value ...)
 ion dashboard [--print]
+ion console [--demo] [--json] [--output NEW_FILE]
+ion runs [--json] [--limit 20]
 ```
 
-`run` is the whole pipeline and what the scheduler calls. Executors dry-run unless `--apply` is given.
+`run` is the whole pipeline and what the scheduler calls. Executors dry-run unless `--apply` is given. Proposal publishing, approval synchronization and notifications can still write externally in that mode. `console` and `runs` are separate offline readers and make no API calls.
 
 - `ion grep` searches the default branch of every mirrored repo with `git grep`. No API calls.
 - `ion autofix` lists the autofixers; `ion autofix NAME` prints the diffs it would make (nothing is written anywhere); `--propose` files one proposal for them. PRs are opened only by the executor, after a maintainer approves exactly those diffs. Write your own by subclassing `ion.fleet.Autofixer`, calling `register`, and naming the module under `autofix.plugins` in the config.

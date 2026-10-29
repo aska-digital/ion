@@ -21,6 +21,7 @@ from .. import proposals
 from ..analyze import latest_analysis
 from ..approve import core, labels
 from ..util import days_since, iso, parse_ts
+from ..runhistory import freshness_line
 
 BOX_RE = re.compile(r"^\s*- \[([ xX])\] <!-- ion:box (approve|hold) (P-\d{4,}) ([0-9a-f]{12}) -->", re.M)
 EDITS_QUERY = """query($owner:String!, $repo:String!, $n:Int!) { repository(owner:$owner, name:$repo) { issue(number:$n) {
@@ -49,7 +50,7 @@ def render_body(ctx, results: dict) -> tuple[str, dict]:
         meta += f" · last collect: {last['repos']} repos, {last['cost']} GraphQL points" + (" (partial)" if last["partial"] else "")
     if cfg.is_paused():
         meta += " · **kill switch is ON**"
-    L += [meta, ""]
+    L += [meta, "", freshness_line(ctx), ""]
     boxes: list[tuple[str, str]] = []
 
     L += ["## Awaiting approval", ""]

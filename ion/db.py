@@ -8,6 +8,12 @@ from pathlib import Path
 from .util import home, iso
 
 SCHEMA = """
+create table if not exists pipeline_runs(id integer primary key autoincrement, started text not null, finished text,
+  duration_seconds real, status text not null, execution_mode text, config_sha text, collection_gen integer,
+  metrics text default '{}', errors text default '[]');
+create table if not exists pipeline_steps(id integer primary key autoincrement, run_id integer not null,
+  name text not null, started text, finished text, duration_seconds real, status text not null,
+  metrics text default '{}', errors text default '[]');
 create table if not exists runs(id integer primary key autoincrement, started text, finished text, cost integer default 0,
   remaining integer, partial integer default 0, repos integer default 0, note text);
 create table if not exists snapshots(run_id integer, repo text, collected_at text, pushed_at text, private integer,
