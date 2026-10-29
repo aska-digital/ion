@@ -8,7 +8,7 @@ from ..util import SafetyError, safe_write
 from .. import changesets
 from ..writes import WriteRequest
 from .base import Executor, Plan, Step, filter_args
-from .provenance import origin_callback
+from .provenance import origin_callback, guard_filter_metadata
 
 
 def protection_body(settings: dict) -> dict:
@@ -167,6 +167,7 @@ class MoveCodeExecutor(Executor):
             fdir, tdir = w / "filtered", w / "target"
 
             def filt():
+                guard_filter_metadata(fdir)
                 self.g(["filter-repo", *filter_args([D]), "--commit-callback", origin_callback(self.cfg.org, S), "--force"],
                        cwd=fdir)
 

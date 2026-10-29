@@ -7,7 +7,7 @@ from .. import proposals
 from ..util import Refused, SafetyError, filter_repo_path, safe_write
 from ..writes import WriteRequest
 from .base import Executor, Plan, Step, filter_args
-from .provenance import origin_callback
+from .provenance import origin_callback, guard_filter_metadata
 from .simple import apply_policy_fix
 
 
@@ -29,6 +29,7 @@ class SplitExecutor(Executor):
         fargs = filter_args(dirs)
 
         def filt():
+            guard_filter_metadata(cdir)
             fr = filter_repo_path()
             if not fr:
                 raise RuntimeError("git-filter-repo not found")

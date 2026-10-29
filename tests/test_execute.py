@@ -459,3 +459,18 @@ def test_runner_skips_unapproved_and_shows_plan_when_asked(ctx):
     r = run_execute(ctx, p["id"])
     assert r["skipped"] and "git subtree add" in "\n".join(r["plans"][p["id"]])
     assert not ctx.gh.writes_to("POST", "/pulls")
+
+
+@pytest.mark.parametrize("metadata", [".gitattributes", ".gitmodules"])
+def test_split_refuses_root_metadata_before_creating_or_pushing(ctx, world, tmp_path, metadata):
+    dev = tmp_path / "metadata-dev"
+    sh("git", "clone", "-q", str(world / "mono.git"), str(dev))
+    (dev / metadata).write_text("# metadata\n")
+    sh("git", "add", metadata, cwd=dev)
+    sh("git", "commit", "-qm", "metadata", cwd=dev)
+    sh("git", "push", "-q", "origin", "HEAD:main", cwd=dev)
+    p = prep(ctx, "split", SPLIT)
+    with pytest.raises(RuntimeError, match="root " + metadata):
+        executor_for(ctx, "split").apply(p, dry_run=False)
+    assert not ctx.gh.writes_to("POST", "/orgs/acme/repos")
+    assert not (world / "mono-engine.git").exists()
