@@ -11,6 +11,9 @@ log = logging.getLogger("ion")
 
 def run_collect(ctx) -> dict:
     cfg, db = ctx.cfg, ctx.db
+    if ctx.sync_mirrors and not getattr(ctx.gh, "supports_git", True):
+        from ..util import Refused
+        raise Refused("GitHub App git transport is unsupported; collect with --no-mirror")
     run_id = snapshot.start_run(db)
     result = {"run_id": run_id, "repos": 0, "cost": 0, "mirrors": {}, "warnings": [], "partial": False}
     try:

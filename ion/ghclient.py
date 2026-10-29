@@ -73,3 +73,10 @@ class GH:
             return self.rest("GET", "/user").get("login")
         except GHError:
             return None
+
+
+def make_gh(cfg):
+    if cfg.get("auth", {}).get("backend", "gh_cli") == "github_app":
+        from .appauth import AppGH
+        return AppGH(cfg["auth"])
+    return GH()

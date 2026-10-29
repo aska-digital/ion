@@ -52,3 +52,11 @@ approval_ttl_days: 14
 archive_requires_second_approval: true
 exclude: []
 git_identity: {name: "ion", email: "ion@example.com"}
+
+# Optional API-only GitHub App backend (gh_cli remains the default).
+# auth:
+#   backend: github_app
+#   client_id: Iv1.your-client-id
+#   installation_id: 12345
+#   private_key_path: ~/.ion/app-private-key.pem
+# App mode requires collect/run --no-mirror; git executors fail closed.

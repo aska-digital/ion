@@ -149,3 +149,7 @@ Webhooks or a live server (polling once a day is enough); cross-org work; auto-m
 | 12 | Org-wide grep and autofixers over mirrors | `fleet.py`, `execute/autofix.py` |
 
 The ideas come from published designs of other projects; no code was copied. Credits are in the README.
+
+### Opt-in GitHub App API backend
+
+`auth.backend: github_app` uses an RSA key path, App client id and installation id. JWTs have a one-minute clock-skew allowance and expire within ten minutes; installation tokens are held only in memory and refreshed before expiry. REST, GraphQL and paginated reads use that installation. App-authenticated label actors are excluded from approvals by the verified `/app` slug. Git transport is deliberately unsupported in this first backend: mirror collection and git executors refuse rather than use `gh` credentials. The default CLI backend is unchanged.

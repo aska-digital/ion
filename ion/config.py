@@ -14,6 +14,7 @@ from .util import home
 DEFAULTS: dict = {
     "org": None,
     "paused": False,
+    "auth": {"backend": "gh_cli"},
     "maintainers": [],
     "plan": "free",
     "tracker_repo": "ion-tracker",  # keep this repo PRIVATE: proposal bodies name private repos
@@ -63,6 +64,13 @@ SCHEMA = {
     "type": "object",
     "properties": {
         "org": {"type": ["string", "null"]}, "paused": {"type": "boolean"}, "maintainers": _STR_LIST,
+        "auth": {"type": "object", "required": ["backend"], "additionalProperties": False,
+                 "properties": {"backend": {"enum": ["gh_cli", "github_app"]},
+                                "client_id": {"type": "string", "minLength": 1},
+                                "installation_id": {"type": "integer", "minimum": 1},
+                                "private_key_path": {"type": "string", "minLength": 1}},
+                 "allOf": [{"if": {"properties": {"backend": {"const": "github_app"}}},
+                            "then": {"required": ["client_id", "installation_id", "private_key_path"]}}]},
         "approval_sources": {"type": "array", "items": {"enum": ["github_label", "divan_bus", "dashboard"]}},
         "notifiers": {"type": "array", "items": {"type": "object", "required": ["type"],
                       "properties": {"type": {"enum": ["stdout", "file", "divan_bus", "github_issue", "webhook"]}}}},
