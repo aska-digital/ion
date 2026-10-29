@@ -235,4 +235,5 @@ Copyright 2026 ASKA Business Solutions and the Ion contributors. Apache-2.0, see
 - **The amp team.** Current is ions in motion, measured in amperes. ion is reviewed, and likely powered, by the amp team, whose specialty is reviewing.
 
 Per-repository `exclude_paths` is unsupported and rejected as a bad override.
-Use the organisation's analysis filters for supported path filtering.
+Path exclusions are not currently implemented. Remove this key so the remaining
+override settings can be accepted; an invalid override is reported and ignored.
