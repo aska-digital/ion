@@ -459,3 +459,13 @@ def test_runner_skips_unapproved_and_shows_plan_when_asked(ctx):
     r = run_execute(ctx, p["id"])
     assert r["skipped"] and "git subtree add" in "\n".join(r["plans"][p["id"]])
     assert not ctx.gh.writes_to("POST", "/pulls")
+
+
+@pytest.mark.parametrize("field", ["dir", "dest_prefix"])
+@pytest.mark.parametrize("path", ["../outside", "/absolute", "a/../b", "-flag", ".git/x", "a//b", "a\\b"])
+def test_move_code_rejects_unsafe_paths_before_any_write(ctx, field, path):
+    p = {"id": "P-TEST", "state": {}, "subject": {"source": "mono", "dir": "site", "target": "old-tool", "dest_prefix": "site", field: path}}
+    before = list(ctx.gh.writes)
+    with pytest.raises(SafetyError, match="safe relative directory"):
+        executor_for(ctx, "move_code").plan(p)
+    assert ctx.gh.writes == before

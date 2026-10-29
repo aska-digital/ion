@@ -160,6 +160,11 @@ class MoveCodeExecutor(Executor):
         pid, S, T, D = p["id"], s["source"], s["target"], s["dir"]
         w = self.ctx.work_dir(pid)
         dest = s.get("dest_prefix") or D
+        for label, path in (("dir", D), ("dest_prefix", dest)):
+            if (not isinstance(path, str) or not path or path.startswith(("/", "-"))
+                    or any(part in ("", ".", "..", ".git") for part in path.split("/"))
+                    or "\\" in path or "\0" in path):
+                raise SafetyError(f"{label} must be a safe relative directory: {path!r}")
         s_url, t_url = self.ctx.remote_url(S), self.ctx.remote_url(T)
         sb, tb = self.default_branch(S), self.default_branch(T)
         if phase == "add":
