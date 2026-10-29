@@ -230,3 +230,10 @@ def test_legacy_mimar_config_is_found_with_migration_note(tmp_path, monkeypatch,
     (tmp_path / ".mimar" / "mimar.yml").write_text("org: o\n")
     assert find_config_file() == tmp_path / ".mimar" / "mimar.yml"
     assert "deprecated" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("args", [["push", "-d", "origin", "ion/x"], ["push", "-uf", "origin"], ["push", "--prune", "origin"], ["branch", "-Df", "ion/x"]])
+def test_git_guard_rejects_equivalent_destructive_flags(args):
+    from ion.util import guard_git, SafetyError
+    with pytest.raises(SafetyError):
+        guard_git(["git", *args])

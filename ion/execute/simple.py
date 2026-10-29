@@ -214,7 +214,7 @@ class MoveCodeExecutor(Executor):
 
             def edit():
                 self.g(["checkout", "-q", "-B", branch, f"origin/{sb}"], cwd=sdir)
-                self.g(["rm", "-r", "-q", D], cwd=sdir)
+                self.g(["rm", "-r", "-q", "--", D], cwd=sdir)
                 safe_write(sdir, "MOVED.md", f"# Moved\n\n`{D}` now lives in {self.cfg.org}/{T} under `{dest}/`.\n")
                 self.g(["add", "MOVED.md"], cwd=sdir)
                 self.commit(sdir, f"Remove {D}; moved to {T} ({pid})")
