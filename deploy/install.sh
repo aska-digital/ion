@@ -11,7 +11,7 @@ DEST="$HOME/Library/LaunchAgents/$LABEL.plist"
 [ -f "$CONFIG" ] || { echo "config not found: $CONFIG" >&2; exit 1; }
 [ -x "$UV" ] || { echo "uv not found (set UV=/path/to/uv)" >&2; exit 1; }
 
-(cd "$SRC_DIR" && "$UV" sync --no-dev >/dev/null)
+(cd "$SRC_DIR" && "$UV" sync --no-dev --extra graph >/dev/null)
 ION_BIN="$SRC_DIR/.venv/bin/ion"
 [ -x "$ION_BIN" ] || { echo "ion entry point missing at $ION_BIN" >&2; exit 1; }
 
