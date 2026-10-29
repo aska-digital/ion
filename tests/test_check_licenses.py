@@ -30,6 +30,26 @@ def test_bad_ids_are_reported():
     assert cl.expression_ok("MIT AND GPL-2.0") == (False, ["GPL-2.0"])
 
 
+def test_leftover_tokens_are_rejected():
+    # "MIT GPL-3.0" is not an expression: the trailing id used to be ignored.
+    assert cl.expression_ok("MIT GPL-3.0") == (False, ["GPL-3.0"])
+    ok, bad = cl.expression_ok("MIT BSD-3-Clause")
+    assert not ok and bad
+
+
+def test_dangling_operator_is_rejected_not_raised():
+    ok, bad = cl.expression_ok("MIT AND")
+    assert not ok and bad
+
+
+def test_declared_but_not_installed_fails(tmp_path):
+    f = tmp_path / "pyproject.toml"
+    f.write_text('[project]\nname="t"\nversion="1"\ndependencies=["definitely-not-installed-pkg-xyz>=1"]\n')
+    p = subprocess.run([sys.executable, str(ROOT / "scripts" / "check_licenses.py"), "--pyproject", str(f)],
+                       capture_output=True, text=True)
+    assert p.returncode == 1 and "declared but not installed" in p.stdout
+
+
 def test_requirement_names_skip_extras_and_normalise():
     assert cl.requirement_name("Jsonschema-Specifications>=2023") == "jsonschema-specifications"
     assert cl.requirement_name("foo[bar]>=1; python_version < '3.11'") == "foo"

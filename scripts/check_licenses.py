@@ -84,7 +84,12 @@ def expression_ok(expr: str) -> tuple[bool, list[str]]:
 
     if not toks:
         return False, ["(empty)"]
-    ok = orx()
+    try:
+        ok = orx()
+    except IndexError:
+        return False, ["(malformed expression)"]       # e.g. a dangling "MIT AND"
+    if pos < len(toks):
+        return False, bad + toks[pos:]                  # leftover tokens: "MIT GPL-3.0" is not an expression
     return ok, ([] if ok else bad)
 
 
@@ -118,6 +123,14 @@ def requirement_name(req: str) -> str | None:
     if "extra ==" in req.split(";", 1)[-1] and ";" in req:
         return None                                          # an optional extra of a dependency, not requested
     return norm_name(m.group(1))
+
+
+def required_roots(pyproject: Path) -> set[str]:
+    """The non-optional dependencies. One of these missing means its licence
+    is unchecked, which fails the run. An uninstalled optional extra only
+    warns: that extra is not in play in this environment."""
+    data = tomllib.loads(pyproject.read_text())
+    return {n for n in (requirement_name(r) for r in data.get("project", {}).get("dependencies", [])) if n}
 
 
 def declared(pyproject: Path) -> set[str]:
@@ -192,13 +205,18 @@ def main(argv=None) -> int:
     for r in rows:
         print(f"{'ok  ' if r['ok'] else 'FAIL'} {r['name']:<{width}} {r['version']:<12} {r['license']}"
               + ("" if r["ok"] else f"   <- not allowed: {', '.join(r['bad'])}"))
+    root_missing = sorted(r for r in required_roots(pyproject) if r not in dists and r not in DENY_PACKAGES)
     for n in missing:
-        print(f"warn {n}: required but not installed in this environment (skipped; install it to check it)")
+        if n in root_missing:
+            print(f"FAIL {n}: declared in pyproject but not installed in this environment (its licence is unchecked)")
+        else:
+            print(f"warn {n}: required but not installed in this environment (skipped; install it to check it)")
     undeclared = [n for n in sorted(roots) if n not in dists and n not in DENY_PACKAGES and n not in missing]
     failed = [r for r in rows if not r["ok"]]
     print(f"\n{len(rows)} packages checked; allowed: MIT, BSD, Apache-2.0, ISC, PSF, MPL-2.0; "
-          f"{len(failed)} not allowed" + (f"; denied in pyproject: {', '.join(denied)}" if denied else ""))
-    return 1 if (failed or denied or undeclared) else 0
+          f"{len(failed)} not allowed" + (f"; denied in pyproject: {', '.join(denied)}" if denied else "")
+          + (f"; declared but not installed: {', '.join(root_missing)}" if root_missing else ""))
+    return 1 if (failed or denied or undeclared or root_missing) else 0
 
 
 if __name__ == "__main__":
