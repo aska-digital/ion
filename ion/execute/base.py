@@ -103,6 +103,8 @@ class Executor:
 
     # execution ------------------------------------------------------------------------
     def apply(self, p: dict, plan: Plan | None = None, dry_run: bool = True) -> dict:
+        if self.kind in self.cfg.get("disabled_executors", []):
+            raise Refused(f"executor {self.kind} is disabled by configuration")
         basis = check_gate(self.ctx, p)          # enforced for dry runs too: no plan output without standing
         plan = plan or self.plan(p)
         if dry_run:

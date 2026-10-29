@@ -52,3 +52,10 @@ approval_ttl_days: 14
 archive_requires_second_approval: true
 exclude: []
 git_identity: {name: "ion", email: "ion@example.com"}
+
+# Invariants checked by doctor and before run --apply (live read-only GitHub checks).
+preflight:
+  expect_networkx: false      # set true to require Louvain instead of allowing the fallback
+  filter_repo_version: null   # optional exact --version output from your validated environment
+# Split and move_code require a readable filter-repo version by default.
+disabled_executors: []        # e.g. [split, move_code] to disable both and make filter-repo optional

@@ -73,6 +73,8 @@ def preflight(ctx, rows) -> str | None:
     lowerings: list[str] = []
     for row in rows:
         p = proposals.view(row)
+        if p["kind"] in ctx.cfg.get("disabled_executors", []):
+            continue
         try:
             check_gate(ctx, p)
         except Refused:

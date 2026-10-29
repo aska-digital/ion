@@ -167,6 +167,13 @@ def cmd_report(ctx, args, results=None):
 
 
 def cmd_run(ctx, args):
+    if args.apply:
+        from .doctor import invariants
+        failed = [c for c in invariants(ctx) if c.get("critical") and not c["ok"]]
+        if failed:
+            for check in failed:
+                out(f"preflight failed: {check['name']}: {check['detail']}")
+            return 1  # before collect, proposals, tracking issue updates, and report writes
     results: dict = {"errors": []}
     if ctx.cfg.is_paused():
         out("kill switch is on: reads and reports only, no GitHub writes")
