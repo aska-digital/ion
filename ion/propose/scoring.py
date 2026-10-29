@@ -43,10 +43,10 @@ def cooldown_blocks(rejected_at: str | None, rejected_score: float | None, score
         return False
     if ((now or _now()) - t).days >= cfg["thresholds"]["cooldown_days"]:
         return False
-    return score < (rejected_score or 0.0) + cfg["thresholds"]["rescore_delta"]
+    return round(score - (rejected_score or 0.0), 9) < cfg["thresholds"]["rescore_delta"]     # 0.7 - 0.55 is 0.1499...
 
 
 def replan_needed(old_hash: str | None, new_hash: str, epoch_score: float | None, score: float, cfg) -> bool:
     if old_hash is not None and old_hash != new_hash:
         return True
-    return epoch_score is not None and abs(score - epoch_score) >= cfg["thresholds"]["rescore_delta"]
+    return epoch_score is not None and round(abs(score - epoch_score), 9) >= cfg["thresholds"]["rescore_delta"]

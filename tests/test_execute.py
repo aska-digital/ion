@@ -302,6 +302,28 @@ def test_split_refuses_non_empty_target(ctx, world):
     assert subjects(world, "mono-engine", "main") == ["pre"]
 
 
+def test_split_refuses_when_it_cannot_tell_the_target_is_empty(ctx, world, monkeypatch):
+    """A transient `ls-remote` failure is not an empty repo: here the target already has a branch of its own."""
+    sh("git", "init", "-q", "--bare", "-b", "main", str(world / "mono-engine.git"))
+    work = world / "_prefill"
+    sh("git", "init", "-q", "-b", "other", str(work))
+    (work / "f").write_text("x")
+    sh("git", "add", "-A", cwd=work); sh("git", "commit", "-qm", "pre", cwd=work)
+    sh("git", "push", "-q", str(world / "mono-engine.git"), "other", cwd=work)
+    p = prep(ctx, "split", SPLIT)
+    ex = executor_for(ctx, "split")
+    real = ex.g
+
+    def g(argv, cwd=None, **kw):
+        if "ls-remote" in argv:
+            return subprocess.CompletedProcess(argv, 128, "", "fatal: unable to access: Could not resolve host")
+        return real(argv, cwd=cwd, **kw)
+    monkeypatch.setattr(ex, "g", g)
+    with pytest.raises(SafetyError, match="cannot list"):
+        ex.apply(p, dry_run=False)
+    assert branches(world, "mono-engine") == ["other"]                            # nothing pushed
+
+
 def test_split_refuses_existing_public_repo_for_private_split(ctx, world):
     sh("git", "init", "-q", "--bare", "-b", "main", str(world / "mono-engine.git"))   # someone pre-created it, public
     p = prep(ctx, "split", {**SPLIT, "private": True})

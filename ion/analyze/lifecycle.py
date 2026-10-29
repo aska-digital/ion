@@ -30,7 +30,8 @@ def stages(snaps: dict[str, dict], cfg, now=None) -> dict[str, str]:
     return {n: stage_of(n, s, cfg, now) for n, s in snaps.items() if not s.get("fork") and n not in cfg["exclude"]}
 
 
-def archive_candidates(snaps: dict[str, dict], pairs: list[dict], cfg, now=None) -> list[dict]:
+def archive_candidates(snaps: dict[str, dict], pairs: list[dict], cfg, now=None, unread: set | None = None) -> list[dict]:
+    """`unread`: live repos whose contents were not loaded (no mirror), so whether they reference a repo is unknown."""
     th = cfg["thresholds"]
     dependents: dict[str, set] = {n: set() for n in snaps}
     for p in pairs:
@@ -47,7 +48,12 @@ def archive_candidates(snaps: dict[str, dict], pairs: list[dict], cfg, now=None)
             continue
         age = days_since(s.get("pushed_at"), now)
         score, reasons = 0.5, [f"no push in {int(age)} days"]
-        if not dependents.get(name):
+        others_unread = (unread or set()) - {name}
+        if dependents.get(name):
+            pass
+        elif others_unread:
+            reasons.append(f"references unknown: {len(others_unread)} other repos were not analysed")
+        else:
             score += 0.2
             reasons.append("no other repo references it")
         superseded = None

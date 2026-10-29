@@ -173,6 +173,9 @@ class DependabotConfig(Autofixer):
     def find_repos(self, ctx, repos):
         out = []
         for n, s in repos.items():
+            ov = parse_repo_override(s.get("override_text"))[0]
+            if ov.get("ignore") or ov.get("enabled") is False:
+                continue
             tree = _tree(ctx, n, s)
             if tree is not None and ".github/dependabot.yml" not in tree and ".github/dependabot.yaml" not in tree \
                     and detect_ecosystems(tree):
