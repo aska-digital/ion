@@ -154,7 +154,7 @@ class Broker:
         if archives > g["max_archives"]:
             return f"{archives} repos would be archived in one run (limit {g['max_archives']})"
         total = self._repo_universe()
-        if total and len(repos) >= g["min_repos"] and len(repos) / total > g["max_repo_fraction"]:
+        if total and len(repos) >= min(g["min_repos"], total) and len(repos) / total > g["max_repo_fraction"]:
             return (f"the run would touch {len(repos)} of {total} repos ({len(repos) / total:.0%}); "
                     f"limit is {g['max_repo_fraction']:.0%}")
         return None
