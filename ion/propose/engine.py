@@ -66,7 +66,7 @@ def gather_candidates(ctx, analysis: dict, snaps: dict[str, dict]) -> list[dict]
                             "score": 0.6, "evidence": {"detail": f["detail"]}, "persist": True})
             else:
                 out.append({"key": f"policy:{fix['class']}:{repo}", "kind": "policy_fix", "subject": fix, "score": 1.0,
-                            "evidence": {"detail": f["detail"], "status": f["status"]}, "persist": False})
+                            "evidence": {"detail": f["detail"], "status": f["status"]}, "persist": True})
     return out
 
 
