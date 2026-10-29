@@ -71,7 +71,7 @@ def test_candidates_cover_merge_split_archive_policy(ctx):
 def test_hysteresis_in_engine_then_issue_created(ctx):
     analysed(ctx)
     r1 = run_propose(ctx)
-    assert r1["created"] and all(c["kind"] == "policy_fix" for c in [{"kind": proposals.get(ctx.db, x["id"])["kind"]} for x in r1["created"]])
+    assert not r1["created"]
     assert not ctx.db.q("select 1 from proposals where kind='merge'")
     r1b = run_propose(ctx)                       # same snapshot: still streak 1
     assert not ctx.db.q("select 1 from proposals where kind='merge'")
@@ -198,6 +198,7 @@ def test_template_text_refreshes_until_someone_approves(ctx):
     from helpers import approve
     analysed(ctx)
     run_propose(ctx)
+    run_collect(ctx); run_analyze(ctx); run_propose(ctx)
     p = proposals.view(ctx.db.one("select * from proposals where kind='policy_fix'"))
     stale = {**p["text"], "risks": ["STALE WORDING"], "source": "template"}
     ctx.db.set_state(p["id"], text=stale)
@@ -275,3 +276,14 @@ def test_llm_call_cap_and_none_backend():
     assert not NoneLLM(load_config(None, {"org": "o"})).enabled
     with pytest.raises(LLMError):
         NoneLLM(load_config(None, {"org": "o"})).complete_json("x")
+
+
+def test_policy_fixes_need_persistent_generations(ctx):
+    run_collect(ctx)
+    run_analyze(ctx)
+    first = run_propose(ctx)
+    assert not [p for p in first["created"] if p["kind"] == "policy_fix"]
+    assert not [p for p in run_propose(ctx)["created"] if p["kind"] == "policy_fix"]
+    run_collect(ctx)
+    run_analyze(ctx)
+    assert [p for p in run_propose(ctx)["created"] if p["kind"] == "policy_fix"]
