@@ -60,6 +60,8 @@ def render_body(ctx, p: dict, plan_lines: list[str], rollback: list[str], approv
         f"Add the label `ion:approved` (or `ion:rejected` / `ion:hold`). Only maintainers count: {maint}. "
         f"Approvals expire after {ctx.cfg['approval_ttl_days']} days, and an approval counts only for the exact plan "
         f"shown here: if the plan changes, the hash below changes, the label is taken off and approval is asked again.", "",
+        "The approval hash covers the subject and initial phase steps, using `P-XXXX` for the proposal id. "
+        "Later phase commands are displayed as execution advances and are not included in that hash.", "",
         f"`plan-sha256: {p['plan_hash']}`", ""]
     if approval:
         lines += [f"_Approval state: {approval['state']} ({approval['reason']})_", ""]

@@ -275,3 +275,12 @@ def test_llm_call_cap_and_none_backend():
     assert not NoneLLM(load_config(None, {"org": "o"})).enabled
     with pytest.raises(LLMError):
         NoneLLM(load_config(None, {"org": "o"})).complete_json("x")
+
+
+def test_plan_hash_can_be_verified_from_real_id_initial_plan(ctx):
+    from helpers import MERGE
+    from ion.propose.engine import plan_for
+    placeholder = plan_for(ctx, "merge", MERGE)
+    actual = plan_for(ctx, "merge", MERGE, "P-0042")
+    assert actual.commands() != placeholder.commands()
+    assert actual.fingerprint() == placeholder.fingerprint()
